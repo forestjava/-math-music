@@ -1,0 +1,17 @@
+{
+  "name": "beep-beep",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3"
+  }
+}
