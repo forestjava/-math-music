@@ -113,6 +113,11 @@ body {
   background: #a78bfa;
 }
 
+.player__interval--deltaDescent,
+.player__interval--deltaAscent {
+  background: #2dd4bf;
+}
+
 .player__interval--deltaPlateau {
   background: #34d399;
 }

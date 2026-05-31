@@ -1,5 +1,8 @@
-import { DURATION_SECONDS, getSessionSnapshot } from "../session/config";
-import { computeAllVoiceOutputs, MIN_FREQUENCY, VOICE_PLAN } from "./voices/compute";
+import { DURATION_SECONDS } from "../session/duration";
+import { getSessionSnapshot, type IntervalKind } from "../session/config";
+import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
+import { computeChannelOutputs } from "./voices/compute";
+import { RhythmTickScheduler, type ScheduledChannel } from "./schedule";
 
 const FADE_SECONDS = 0.4;
 const MASTER_OUTPUT_LEVEL = 0.18;
@@ -18,21 +21,17 @@ export interface LiveValues {
 
 type ValuesListener = (values: LiveValues) => void;
 
-interface ChannelNodes {
-  voiceGains: GainNode[];
-  oscillators: OscillatorNode[];
-}
-
 export class BinauralSessionEngine {
   private context: AudioContext | null = null;
   private masterGain: GainNode | null = null;
-  private leftChannel: ChannelNodes | null = null;
-  private rightChannel: ChannelNodes | null = null;
+  private leftChannel: ScheduledChannel | null = null;
+  private rightChannel: ScheduledChannel | null = null;
+  private readonly scheduler = new RhythmTickScheduler();
 
   private playbackState: PlaybackState = "stopped";
-  private sessionStartPerf = 0;
+  private sessionStartAudio = 0;
   private pausedElapsed = 0;
-  private rafId = 0;
+  private uiTimer = 0;
   private valuesListener: ValuesListener | null = null;
 
   setValuesListener(listener: ValuesListener | null): void {
@@ -61,11 +60,12 @@ export class BinauralSessionEngine {
     }
 
     this.playbackState = "playing";
-    this.sessionStartPerf = performance.now() - this.pausedElapsed * 1000;
+    this.sessionStartAudio = this.context.currentTime - this.pausedElapsed;
 
-    this.applySessionState(this.getElapsedSeconds());
+    this.applyImmediateState(this.getElapsedSeconds());
     this.fadeMaster(1);
-    this.startLoop();
+    this.startScheduler();
+    this.startUiLoop();
     this.emitValues();
   }
 
@@ -74,7 +74,8 @@ export class BinauralSessionEngine {
 
     this.pausedElapsed = this.getElapsedSeconds();
     this.playbackState = "paused";
-    this.stopLoop();
+    this.scheduler.stop();
+    this.stopUiLoop();
     this.fadeMaster(0);
 
     window.setTimeout(() => {
@@ -89,7 +90,8 @@ export class BinauralSessionEngine {
 
     this.playbackState = "stopped";
     this.pausedElapsed = 0;
-    this.stopLoop();
+    this.scheduler.stop();
+    this.stopUiLoop();
     this.fadeMaster(0);
 
     window.setTimeout(() => {
@@ -114,8 +116,8 @@ export class BinauralSessionEngine {
     this.masterGain = this.context.createGain();
     this.masterGain.gain.value = 0;
 
-    this.leftChannel = this.createChannel(VOICE_PLAN.length);
-    this.rightChannel = this.createChannel(VOICE_PLAN.length);
+    this.leftChannel = this.createChannel();
+    this.rightChannel = this.createChannel();
 
     const merger = this.context.createChannelMerger(2);
     const leftSum = this.context.createGain();
@@ -135,16 +137,15 @@ export class BinauralSessionEngine {
     this.masterGain.connect(this.context.destination);
   }
 
-  private createChannel(oscillatorCount: number): ChannelNodes {
+  private createChannel(): ScheduledChannel {
     if (!this.context) throw new Error("AudioContext is not initialized");
 
     const voiceGains: GainNode[] = [];
     const oscillators: OscillatorNode[] = [];
 
-    for (let i = 0; i < oscillatorCount; i++) {
+    for (let i = 0; i < CHOIR_MEMBER_COUNT; i++) {
       const oscillator = this.context.createOscillator();
       oscillator.type = "sine";
-      oscillator.frequency.value = MIN_FREQUENCY;
 
       const gain = this.context.createGain();
       gain.gain.value = 0;
@@ -170,7 +171,7 @@ export class BinauralSessionEngine {
   }
 
   private disposeOscillators(): void {
-    const stopChannel = (channel: ChannelNodes | null) => {
+    const stopChannel = (channel: ScheduledChannel | null) => {
       if (!channel) return;
       for (const oscillator of channel.oscillators) {
         try {
@@ -209,21 +210,21 @@ export class BinauralSessionEngine {
   }
 
   private getElapsedSeconds(): number {
-    if (this.playbackState === "playing") {
-      return Math.min(DURATION_SECONDS, (performance.now() - this.sessionStartPerf) / 1000);
+    if (this.playbackState === "playing" && this.context) {
+      return Math.min(DURATION_SECONDS, this.context.currentTime - this.sessionStartAudio);
     }
 
     return this.pausedElapsed;
   }
 
-  private applySessionState(elapsed: number): void {
+  private applyImmediateState(elapsed: number): void {
     if (!this.context || !this.leftChannel || !this.rightChannel) return;
 
     const now = this.context.currentTime;
-    const leftOutputs = computeAllVoiceOutputs(elapsed, "left");
-    const rightOutputs = computeAllVoiceOutputs(elapsed, "right");
+    const leftOutputs = computeChannelOutputs(elapsed, "left");
+    const rightOutputs = computeChannelOutputs(elapsed, "right");
 
-    for (let i = 0; i < VOICE_PLAN.length; i++) {
+    for (let i = 0; i < CHOIR_MEMBER_COUNT; i++) {
       this.leftChannel.oscillators[i].frequency.setValueAtTime(leftOutputs[i].frequency, now);
       this.leftChannel.voiceGains[i].gain.setValueAtTime(leftOutputs[i].gain, now);
       this.rightChannel.oscillators[i].frequency.setValueAtTime(rightOutputs[i].frequency, now);
@@ -231,27 +232,35 @@ export class BinauralSessionEngine {
     }
   }
 
-  private tick = (): void => {
-    const elapsed = this.getElapsedSeconds();
+  private startScheduler(): void {
+    if (!this.context || !this.leftChannel || !this.rightChannel) return;
 
-    if (elapsed >= DURATION_SECONDS) {
-      this.stop();
-      return;
-    }
-
-    this.applySessionState(elapsed);
-    this.emitValues();
-    this.rafId = requestAnimationFrame(this.tick);
-  };
-
-  private startLoop(): void {
-    cancelAnimationFrame(this.rafId);
-    this.rafId = requestAnimationFrame(this.tick);
+    this.scheduler.start({
+      context: this.context,
+      left: this.leftChannel,
+      right: this.rightChannel,
+      getElapsed: () => this.getElapsedSeconds(),
+      getPlaybackState: () => this.playbackState,
+      onTick: () => this.emitValues(),
+      onSessionEnd: () => this.stop(),
+    });
   }
 
-  private stopLoop(): void {
-    cancelAnimationFrame(this.rafId);
-    this.rafId = 0;
+  private startUiLoop(): void {
+    this.stopUiLoop();
+    this.uiTimer = window.setInterval(() => {
+      const elapsed = this.getElapsedSeconds();
+      if (elapsed >= DURATION_SECONDS) {
+        this.stop();
+        return;
+      }
+      this.emitValues();
+    }, 250);
+  }
+
+  private stopUiLoop(): void {
+    window.clearInterval(this.uiTimer);
+    this.uiTimer = 0;
   }
 
   private emitValues(): void {
@@ -279,14 +288,16 @@ export function formatTime(seconds: number): string {
 }
 
 export function intervalLabel(kind: string): string {
-  const labels: Record<string, string> = {
+  const labels: Record<IntervalKind, string> = {
     betaDescent: "Бета спуск",
     alphaDescent: "Альфа спуск",
     thetaDescent: "Тета спуск",
+    deltaDescent: "Дельта спуск",
     deltaPlateau: "Дельта плато",
+    deltaAscent: "Дельта подъём",
     thetaAscent: "Тета подъём",
     alphaAscent: "Альфа подъём",
     betaAscent: "Бета подъём",
   };
-  return labels[kind] ?? kind;
+  return labels[kind as IntervalKind] ?? kind;
 }

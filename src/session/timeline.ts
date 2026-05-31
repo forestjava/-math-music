@@ -1,21 +1,28 @@
-import {
-  DURATION_SECONDS,
-  INTERVALS,
-  SEGMENT_DURATION,
-  type IntervalDefinition,
-  type IntervalKind,
-  type IntervalPosition,
-  type SessionSnapshot,
-} from "./config";
-export { DURATION_SECONDS, INTERVALS, SEGMENT_DURATION };
+import { DURATION_SECONDS, SEGMENT_DURATION } from "./duration";
+import { INTERVALS, type IntervalDefinition } from "./intervals";
+import { carrierCenterHz } from "./carrierPlan";
 
-export type { IntervalDefinition, IntervalKind, IntervalPosition, SessionSnapshot };
-const PLATEAU_INTERVAL_INDEX = 3;
-const PLATEAU_TRANSITION_SEGMENTS = 8;
-const PLATEAU_DESCENT_4_TO_1 = 3;
-const PLATEAU_DESCENT_1_TO_05 = 1;
-const PLATEAU_ASCENT_05_TO_1 = 1;
-const PLATEAU_ASCENT_1_TO_4 = 3;
+export { DURATION_SECONDS, SEGMENT_DURATION, INTERVALS };
+export type { IntervalDefinition };
+
+export interface IntervalPosition {
+  interval: IntervalDefinition;
+  intervalIndex: number;
+  progress: number;
+  startElapsed: number;
+  duration: number;
+}
+
+export interface SessionSnapshot {
+  elapsed: number;
+  interval: IntervalDefinition;
+  intervalIndex: number;
+  intervalProgress: number;
+  rhythm: number;
+  carrier: number;
+  leftCarrier: number;
+  rightCarrier: number;
+}
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -34,17 +41,18 @@ export function intervalEndElapsed(index: number): number {
   for (let i = 0; i <= index; i++) {
     elapsed += intervalDurationAt(i);
   }
-
   return elapsed;
 }
 
 export function getIntervalPosition(elapsedSeconds: number): IntervalPosition {
   const elapsed = Math.max(0, Math.min(elapsedSeconds, DURATION_SECONDS));
   let startElapsed = 0;
+
   for (let intervalIndex = 0; intervalIndex < INTERVALS.length; intervalIndex++) {
     const interval = INTERVALS[intervalIndex];
     const duration = intervalDuration(interval);
     const endElapsed = startElapsed + duration;
+
     if (elapsed < endElapsed || intervalIndex === INTERVALS.length - 1) {
       const progress = duration > 0 ? (elapsed - startElapsed) / duration : 1;
       return {
@@ -69,74 +77,17 @@ export function getIntervalPosition(elapsedSeconds: number): IntervalPosition {
   };
 }
 
-function deltaPlateauRhythm(progress: number): number {
-  const totalSegments = INTERVALS[PLATEAU_INTERVAL_INDEX].segments;
-  const holdSegments = totalSegments - PLATEAU_TRANSITION_SEGMENTS;
-  const segmentProgress = progress * totalSegments;
-  if (segmentProgress < PLATEAU_DESCENT_4_TO_1) {
-    return lerp(4, 1, segmentProgress / PLATEAU_DESCENT_4_TO_1);
-  }
-
-  if (segmentProgress < PLATEAU_DESCENT_4_TO_1 + PLATEAU_DESCENT_1_TO_05) {
-    return lerp(1, 0.5, segmentProgress - PLATEAU_DESCENT_4_TO_1);
-  }
-
-  if (segmentProgress < PLATEAU_DESCENT_4_TO_1 + PLATEAU_DESCENT_1_TO_05 + holdSegments) {
-    return 0.5;
-  }
-
-  if (
-    segmentProgress <
-    PLATEAU_DESCENT_4_TO_1 + PLATEAU_DESCENT_1_TO_05 + holdSegments + PLATEAU_ASCENT_05_TO_1
-  ) {
-    return lerp(
-      0.5,
-      1,
-      segmentProgress - PLATEAU_DESCENT_4_TO_1 - PLATEAU_DESCENT_1_TO_05 - holdSegments,
-    );
-  }
-
-  return lerp(
-    1,
-    4,
-
-    (segmentProgress -
-      PLATEAU_DESCENT_4_TO_1 -
-      PLATEAU_DESCENT_1_TO_05 -
-      holdSegments -
-      PLATEAU_ASCENT_05_TO_1) /
-      PLATEAU_ASCENT_1_TO_4,
-  );
-}
-
 export function getRhythmAt(position: IntervalPosition): number {
-  if (position.interval.kind === "deltaPlateau") {
-    return deltaPlateauRhythm(position.progress);
-  }
-
-  return lerp(position.interval.rhythmStart, position.interval.rhythmEnd, position.progress);
-}
-
-export function carrierCenterAt(intervalIndex: number, progress: number): number {
-  const interval = INTERVALS[intervalIndex];
-  const rhythm =
-    interval.kind === "deltaPlateau"
-      ? deltaPlateauRhythm(progress)
-      : lerp(interval.rhythmStart, interval.rhythmEnd, progress);
-  return rhythm * interval.carrierMultiplier;
-}
-
-export function carrierBoundary(intervalIndex: number, atStart: boolean): number {
-  const interval = INTERVALS[intervalIndex];
-  const rhythm = atStart ? interval.rhythmStart : interval.rhythmEnd;
-  return rhythm * interval.carrierMultiplier;
+  const { interval, progress } = position;
+  return lerp(interval.rhythmStart, interval.rhythmEnd, progress);
 }
 
 export function getSessionSnapshot(elapsedSeconds: number): SessionSnapshot {
   const position = getIntervalPosition(elapsedSeconds);
   const rhythm = getRhythmAt(position);
-  const carrier = carrierCenterAt(position.intervalIndex, position.progress);
+  const carrier = carrierCenterHz(position.intervalIndex, position.progress);
   const halfRhythm = rhythm / 2;
+
   return {
     elapsed: Math.max(0, Math.min(elapsedSeconds, DURATION_SECONDS)),
     interval: position.interval,
@@ -148,9 +99,3 @@ export function getSessionSnapshot(elapsedSeconds: number): SessionSnapshot {
     rightCarrier: carrier + halfRhythm,
   };
 }
-
-export const DESCENT_INTERVAL_COUNT = 3;
-
-export const PLATEAU_INDEX = PLATEAU_INTERVAL_INDEX;
-
-export const ASCENT_INTERVAL_START = 4;
