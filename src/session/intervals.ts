@@ -10,7 +10,7 @@ export interface IntervalDefinition {
   isAscent: boolean;
 }
 
-/** 2+4+6+8+2+4+3+2+1 = 32 отрезка. */
+/** 2+4+6+8+10+4+3+2+1 = 40 отрезков. */
 export const INTERVALS: IntervalDefinition[] = [
   {
     kind: "betaDescent",
@@ -50,7 +50,7 @@ export const INTERVALS: IntervalDefinition[] = [
   },
   {
     kind: "deltaPlateau",
-    segments: 2,
+    segments: 10,
     rhythmStart: 0.5,
     rhythmEnd: 0.5,
     carrierMultiplier: 128,
