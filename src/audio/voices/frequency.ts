@@ -5,7 +5,7 @@ import { ASCENT_INTERVAL_START, PLATEAU_INTERVAL_INDEX } from "../../session/con
  * Фазовый индекс для частотной пирамиды.
  * Спуски 0..3 → 0..3; плато → 3; подъёмы → 3,2,1,0.
  * Не меняется скачком на стыках, поэтому частоты непрерывны
- * при скачке несущей вершины 256→512 между интервалами спуска.
+ * при скачке несущей вершины 128→256 между интервалами спуска.
  */
 export function frequencyPhaseIndex(intervalIndex: number): number {
   if (intervalIndex <= 3) return intervalIndex;
