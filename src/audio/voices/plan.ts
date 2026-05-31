@@ -6,7 +6,7 @@ export const CHOIR_SIZE = CHOIR_MEMBER_COUNT;
 export function getPlanningSummary(): string {
   const report = verifyBoundaryContinuity();
   const lines = [
-    "=== План хора: 9 участников × 2 канала = 18 осцилляторов ===",
+    `=== План хора: ${CHOIR_SIZE} участников × 2 канала = ${CHOIR_SIZE * 2} осцилляторов ===`,
     "",
     "Частоты: center × 2^slot; gain: алгоритмическая пирамида (спуск / плато / подъём).",
     "Тики: период 1/ритм (0.5–32 Гц), без requestAnimationFrame.",

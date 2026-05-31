@@ -1,4 +1,5 @@
 import type { HarmonicSlot } from "./harmonic";
+import { HARMONIC_SLOT_MAX, HARMONIC_SLOT_MIN } from "./harmonic";
 import {
   DELTA_ASCENT_INDEX,
   DELTA_DESCENT_INDEX,
@@ -21,10 +22,12 @@ export function pyramidGainAtPeak(slot: HarmonicSlot, peakSlot: HarmonicSlot): n
 }
 
 function gainForShiftedSlot(shiftedSlot: number): number {
-  if (shiftedSlot >= -4 && shiftedSlot <= 4) {
+  if (shiftedSlot >= HARMONIC_SLOT_MIN && shiftedSlot <= HARMONIC_SLOT_MAX) {
     return pyramidGainAtSessionStart(shiftedSlot as HarmonicSlot);
   }
-  if (shiftedSlot > 4) return 2 ** (-4 - (shiftedSlot - 4));
+  if (shiftedSlot > HARMONIC_SLOT_MAX) {
+    return 2 ** (HARMONIC_SLOT_MIN - (shiftedSlot - HARMONIC_SLOT_MAX));
+  }
   return 2 ** shiftedSlot;
 }
 
