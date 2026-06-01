@@ -4,7 +4,8 @@ import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
 import { computeChannelOutputs } from "./voices/compute";
 import { TickChainScheduler, type ScheduledChannel } from "./tickChain";
 
-const FADE_SECONDS = 0.4;
+const FADE_SECONDS = 0.2;
+const FADE_DELAY_MS = FADE_SECONDS * 1000 + 100;
 const MASTER_OUTPUT_LEVEL = 0.18;
 
 export type PlaybackState = "stopped" | "playing" | "paused";
@@ -76,11 +77,11 @@ export class BinauralSessionEngine {
     this.playbackState = "paused";
     this.scheduler.stop();
     this.stopUiLoop();
-    this.fadeMaster(0);
 
+    this.fadeMaster(0);
     window.setTimeout(() => {
       void this.context?.suspend();
-    }, FADE_SECONDS * 1000);
+    }, FADE_DELAY_MS);
 
     this.emitValues();
   }
@@ -92,13 +93,12 @@ export class BinauralSessionEngine {
     this.pausedElapsed = 0;
     this.scheduler.stop();
     this.stopUiLoop();
-    this.fadeMaster(0);
 
+    this.fadeMaster(0);
     window.setTimeout(() => {
       this.disposeOscillators();
       void this.context?.suspend();
-      this.emitValues();
-    }, FADE_SECONDS * 1000);
+    }, FADE_DELAY_MS);
   }
 
   toggle(): Promise<void> {
