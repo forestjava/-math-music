@@ -6,21 +6,29 @@ import {
   intervalEndElapsed,
   PLATEAU_INTERVAL_INDEX,
 } from "../../session/config";
-import { tickPeriodAtElapsed } from "../../session/tickModel";
 import { CHOIR_MEMBERS } from "./choirMembers";
 import { memberCenterHz } from "./frequency";
 import type { HarmonicSlot } from "./harmonic";
 import { memberGainAt } from "./gains";
-import type { ChannelSide, ChoirMemberSnapshot, VoiceTickState } from "./types";
+import type { ChannelSide, ChoirMemberSnapshot, VoiceSample, VoiceTickState } from "./types";
 
 function channelFrequency(centerHz: number, rhythmHz: number, side: ChannelSide): number {
   const half = rhythmHz / 2;
   return side === "left" ? centerHz - half : centerHz + half;
 }
 
-function resolveGain(slot: HarmonicSlot, elapsed: number): number {
-  const { intervalIndex, progress, interval } = getIntervalPosition(elapsed);
-  return memberGainAt(
+/** y(elapsed): частота и gain одного голоса в канале. */
+export function sampleVoiceAt(
+  elapsed: number,
+  slot: HarmonicSlot,
+  side: ChannelSide,
+): VoiceSample {
+  const position = getIntervalPosition(elapsed);
+  const { intervalIndex, progress, interval } = position;
+  const rhythm = getRhythmAt(position);
+  const peakCarrier = carrierCenterHz(intervalIndex, progress);
+  const center = memberCenterHz(slot, peakCarrier, intervalIndex);
+  const gain = memberGainAt(
     slot,
     intervalIndex,
     progress,
@@ -29,48 +37,40 @@ function resolveGain(slot: HarmonicSlot, elapsed: number): number {
     PLATEAU_INTERVAL_INDEX,
     ASCENT_INTERVAL_START,
   );
-}
-
-function memberFrequency(
-  slot: HarmonicSlot,
-  elapsed: number,
-  side: ChannelSide,
-): number {
-  const position = getIntervalPosition(elapsed);
-  const { intervalIndex, progress } = position;
-  const rhythm = getRhythmAt(position);
-  const peakCarrier = carrierCenterHz(intervalIndex, progress);
-  const center = memberCenterHz(slot, peakCarrier, intervalIndex);
-  return channelFrequency(center, rhythm, side);
-}
-
-export function computeVoiceTickState(
-  slot: HarmonicSlot,
-  elapsed: number,
-  side: ChannelSide,
-): VoiceTickState {
-  const gain = resolveGain(slot, elapsed);
-  const frequency = memberFrequency(slot, elapsed, side);
-
-  const period = tickPeriodAtElapsed(elapsed);
-  const endElapsed = elapsed + period;
-  const endGain = resolveGain(slot, endElapsed);
 
   return {
-    frequency,
-    frequencyEnd: memberFrequency(slot, endElapsed, side),
+    frequency: channelFrequency(center, rhythm, side),
     gain,
-    gainEnd: endGain,
+  };
+}
+
+/** y(elapsed): все голоса одного канала. */
+export function sampleChannelAt(
+  elapsed: number,
+  side: ChannelSide,
+): VoiceSample[] {
+  return CHOIR_MEMBERS.map((member) => sampleVoiceAt(elapsed, member.slot, side));
+}
+
+function voiceStateAtPoint(sample: VoiceSample): VoiceTickState {
+  return {
+    frequency: sample.frequency,
+    frequencyEnd: sample.frequency,
+    gain: sample.gain,
+    gainEnd: sample.gain,
   };
 }
 
 export function computeMemberSnapshot(memberIndex: number, elapsed: number): ChoirMemberSnapshot {
   const member = CHOIR_MEMBERS[memberIndex];
+  const left = sampleVoiceAt(elapsed, member.slot, "left");
+  const right = sampleVoiceAt(elapsed, member.slot, "right");
+
   return {
     memberIndex,
     slot: member.slot,
-    left: computeVoiceTickState(member.slot, elapsed, "left"),
-    right: computeVoiceTickState(member.slot, elapsed, "right"),
+    left: voiceStateAtPoint(left),
+    right: voiceStateAtPoint(right),
   };
 }
 
@@ -92,12 +92,10 @@ export function computeChoirAtIntervalEdge(
   return computeChoirAt(elapsed);
 }
 
+/** Алиас для планировщика: значения канала в одной точке elapsed. */
 export function computeChannelOutputs(
   elapsed: number,
   side: ChannelSide,
-): { frequency: number; gain: number }[] {
-  return computeChoirAt(elapsed).map((snapshot) => {
-    const channel = side === "left" ? snapshot.left : snapshot.right;
-    return { frequency: channel.frequency, gain: channel.gain };
-  });
+): VoiceSample[] {
+  return sampleChannelAt(elapsed, side);
 }

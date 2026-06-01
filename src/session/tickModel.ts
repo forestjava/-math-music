@@ -34,16 +34,47 @@ export interface SessionTick {
   periodSeconds: number;
 }
 
-/** Генератор тиков сессии (алгоритмический, без полного массива в памяти). */
+/** Следующий тик решётки с границы `elapsed` (один шаг, без массива). */
+export function nextTickAfter(elapsed: number): SessionTick | null {
+  if (elapsed >= DURATION_SECONDS) return null;
+
+  const startElapsed = Math.max(0, elapsed);
+  const period = tickPeriodAtElapsed(startElapsed);
+  const endElapsed = Math.min(DURATION_SECONDS, startElapsed + period);
+
+  return {
+    index: -1,
+    startElapsed,
+    endElapsed,
+    periodSeconds: endElapsed - startElapsed,
+  };
+}
+
+/** Начало тика, в котором находится `elapsed` (для resume). */
+export function alignToTickStart(elapsed: number): number {
+  const clamped = Math.max(0, Math.min(elapsed, DURATION_SECONDS));
+  if (clamped <= 0) return 0;
+
+  let cursor = 0;
+  while (cursor < clamped) {
+    const tick = nextTickAfter(cursor);
+    if (!tick || tick.endElapsed > clamped + 1e-9) return cursor;
+    cursor = tick.endElapsed;
+  }
+
+  return cursor;
+}
+
+/** Генератор тиков сессии — только отладка и boundary scripts, не для play(). */
 export function* iterateSessionTicks(): Generator<SessionTick> {
   let elapsed = 0;
   let index = 0;
 
   while (elapsed < DURATION_SECONDS) {
-    const period = tickPeriodAtElapsed(elapsed);
-    const endElapsed = Math.min(DURATION_SECONDS, elapsed + period);
-    yield { index, startElapsed: elapsed, endElapsed, periodSeconds: period };
-    elapsed = endElapsed;
+    const tick = nextTickAfter(elapsed);
+    if (!tick) break;
+    yield { ...tick, index };
+    elapsed = tick.endElapsed;
     index += 1;
   }
 }

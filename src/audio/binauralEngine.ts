@@ -2,7 +2,7 @@ import { DURATION_SECONDS } from "../session/duration";
 import { getSessionSnapshot, type IntervalKind } from "../session/config";
 import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
 import { computeChannelOutputs } from "./voices/compute";
-import { RhythmTickScheduler, type ScheduledChannel } from "./schedule";
+import { TickChainScheduler, type ScheduledChannel } from "./tickChain";
 
 const FADE_SECONDS = 0.4;
 const MASTER_OUTPUT_LEVEL = 0.18;
@@ -26,12 +26,12 @@ export class BinauralSessionEngine {
   private masterGain: GainNode | null = null;
   private leftChannel: ScheduledChannel | null = null;
   private rightChannel: ScheduledChannel | null = null;
-  private readonly scheduler = new RhythmTickScheduler();
+  private readonly scheduler = new TickChainScheduler();
 
   private playbackState: PlaybackState = "stopped";
   private sessionStartAudio = 0;
   private pausedElapsed = 0;
-  private uiTimer = 0;
+  private uiRafId = 0;
   private valuesListener: ValuesListener | null = null;
 
   setValuesListener(listener: ValuesListener | null): void {
@@ -235,32 +235,43 @@ export class BinauralSessionEngine {
   private startScheduler(): void {
     if (!this.context || !this.leftChannel || !this.rightChannel) return;
 
-    this.scheduler.start({
-      context: this.context,
-      left: this.leftChannel,
-      right: this.rightChannel,
-      getElapsed: () => this.getElapsedSeconds(),
-      getPlaybackState: () => this.playbackState,
-      onTick: () => this.emitValues(),
-      onSessionEnd: () => this.stop(),
-    });
+    this.scheduler.start(
+      {
+        context: this.context,
+        left: this.leftChannel,
+        right: this.rightChannel,
+        sessionStartAudio: this.sessionStartAudio,
+        getPlaybackState: () => this.playbackState,
+        onSessionEnd: () => this.stop(),
+      },
+      this.getElapsedSeconds(),
+    );
   }
 
   private startUiLoop(): void {
     this.stopUiLoop();
-    this.uiTimer = window.setInterval(() => {
+
+    const loop = () => {
+      if (this.playbackState !== "playing") return;
+
       const elapsed = this.getElapsedSeconds();
       if (elapsed >= DURATION_SECONDS) {
         this.stop();
         return;
       }
+
       this.emitValues();
-    }, 250);
+      this.uiRafId = requestAnimationFrame(loop);
+    };
+
+    this.uiRafId = requestAnimationFrame(loop);
   }
 
   private stopUiLoop(): void {
-    window.clearInterval(this.uiTimer);
-    this.uiTimer = 0;
+    if (this.uiRafId) {
+      cancelAnimationFrame(this.uiRafId);
+    }
+    this.uiRafId = 0;
   }
 
   private emitValues(): void {

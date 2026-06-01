@@ -1,4 +1,4 @@
-/** Длительность сессии в минутах (5–15 по замыслу; сейчас для отладки). */
+/** Длительность сессии в минутах TODO вынести в UI */
 export const DURATION_MINUTES = 1;
 
 export const DURATION_SECONDS = DURATION_MINUTES * 60;
