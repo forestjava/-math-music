@@ -1,5 +1,8 @@
-export type { HarmonicSlot } from "./harmonic";
+import type { HarmonicSlot } from "./harmonic";
+
+export type { HarmonicSlot };
 export { HARMONIC_SLOTS, HARMONIC_LABELS, CHOIR_MEMBER_COUNT } from "./harmonic";
+
 export type { ChoirMember } from "./choirMembers";
 export { CHOIR_MEMBERS } from "./choirMembers";
 
@@ -19,7 +22,7 @@ export interface VoiceTickState {
 
 export interface ChoirMemberSnapshot {
   memberIndex: number;
-  slot: import("./harmonic").HarmonicSlot;
+  slot: HarmonicSlot;
   left: VoiceTickState;
   right: VoiceTickState;
   center: VoiceTickState;

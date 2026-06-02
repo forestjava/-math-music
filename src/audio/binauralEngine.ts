@@ -3,6 +3,7 @@ import { getSessionSnapshot, type IntervalKind } from "../session/config";
 import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
 import { computeCenterOutputs, computeChannelOutputs } from "./voices/compute";
 import { TickChainScheduler, type ScheduledChannel } from "./tickChain";
+import { randomPhaseWave } from "./waveform";
 
 const FADE_SECONDS = 0.2;
 const FADE_DELAY_MS = FADE_SECONDS * 1000 + 100;
@@ -153,7 +154,7 @@ export class BinauralSessionEngine {
 
     for (let i = 0; i < CHOIR_MEMBER_COUNT; i++) {
       const oscillator = this.context.createOscillator();
-      oscillator.type = "sine";
+      randomPhaseWave(oscillator, this.context);
 
       const gain = this.context.createGain();
       gain.gain.value = 0;
