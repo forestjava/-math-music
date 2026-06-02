@@ -1,7 +1,7 @@
 import { DURATION_SECONDS } from "../session/duration";
 import { getSessionSnapshot, type IntervalKind } from "../session/config";
 import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
-import { computeChannelOutputs } from "./voices/compute";
+import { computeCenterOutputs, computeChannelOutputs } from "./voices/compute";
 import { TickChainScheduler, type ScheduledChannel } from "./tickChain";
 
 const FADE_SECONDS = 0.2;
@@ -27,6 +27,7 @@ export class BinauralSessionEngine {
   private masterGain: GainNode | null = null;
   private leftChannel: ScheduledChannel | null = null;
   private rightChannel: ScheduledChannel | null = null;
+  private centerChannel: ScheduledChannel | null = null;
   private readonly scheduler = new TickChainScheduler();
 
   private playbackState: PlaybackState = "stopped";
@@ -118,10 +119,12 @@ export class BinauralSessionEngine {
 
     this.leftChannel = this.createChannel();
     this.rightChannel = this.createChannel();
+    this.centerChannel = this.createChannel();
 
     const merger = this.context.createChannelMerger(2);
     const leftSum = this.context.createGain();
     const rightSum = this.context.createGain();
+    const centerSum = this.context.createGain();
 
     for (const gain of this.leftChannel.voiceGains) {
       gain.connect(leftSum);
@@ -131,9 +134,14 @@ export class BinauralSessionEngine {
       gain.connect(rightSum);
     }
 
+    for (const gain of this.centerChannel.voiceGains) {
+      gain.connect(centerSum);
+    }
+
     leftSum.connect(merger, 0, 0);
     rightSum.connect(merger, 0, 1);
     merger.connect(this.masterGain);
+    centerSum.connect(this.masterGain);
     this.masterGain.connect(this.context.destination);
   }
 
@@ -159,13 +167,17 @@ export class BinauralSessionEngine {
   }
 
   private startOscillators(): void {
-    if (!this.leftChannel || !this.rightChannel) return;
+    if (!this.leftChannel || !this.rightChannel || !this.centerChannel) return;
 
     for (const oscillator of this.leftChannel.oscillators) {
       oscillator.start();
     }
 
     for (const oscillator of this.rightChannel.oscillators) {
+      oscillator.start();
+    }
+
+    for (const oscillator of this.centerChannel.oscillators) {
       oscillator.start();
     }
   }
@@ -189,9 +201,11 @@ export class BinauralSessionEngine {
 
     stopChannel(this.leftChannel);
     stopChannel(this.rightChannel);
+    stopChannel(this.centerChannel);
 
     this.leftChannel = null;
     this.rightChannel = null;
+    this.centerChannel = null;
     this.masterGain = null;
 
     if (this.context) {
@@ -218,28 +232,32 @@ export class BinauralSessionEngine {
   }
 
   private applyImmediateState(elapsed: number): void {
-    if (!this.context || !this.leftChannel || !this.rightChannel) return;
+    if (!this.context || !this.leftChannel || !this.rightChannel || !this.centerChannel) return;
 
     const now = this.context.currentTime;
     const leftOutputs = computeChannelOutputs(elapsed, "left");
     const rightOutputs = computeChannelOutputs(elapsed, "right");
+    const centerOutputs = computeCenterOutputs(elapsed);
 
     for (let i = 0; i < CHOIR_MEMBER_COUNT; i++) {
       this.leftChannel.oscillators[i].frequency.setValueAtTime(leftOutputs[i].frequency, now);
       this.leftChannel.voiceGains[i].gain.setValueAtTime(leftOutputs[i].gain, now);
       this.rightChannel.oscillators[i].frequency.setValueAtTime(rightOutputs[i].frequency, now);
       this.rightChannel.voiceGains[i].gain.setValueAtTime(rightOutputs[i].gain, now);
+      this.centerChannel.oscillators[i].frequency.setValueAtTime(centerOutputs[i].frequency, now);
+      this.centerChannel.voiceGains[i].gain.setValueAtTime(centerOutputs[i].gain, now);
     }
   }
 
   private startScheduler(): void {
-    if (!this.context || !this.leftChannel || !this.rightChannel) return;
+    if (!this.context || !this.leftChannel || !this.rightChannel || !this.centerChannel) return;
 
     this.scheduler.start(
       {
         context: this.context,
         left: this.leftChannel,
         right: this.rightChannel,
+        center: this.centerChannel,
         sessionStartAudio: this.sessionStartAudio,
         getPlaybackState: () => this.playbackState,
         onSessionEnd: () => this.stop(),

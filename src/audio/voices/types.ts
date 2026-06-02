@@ -22,4 +22,5 @@ export interface ChoirMemberSnapshot {
   slot: import("./harmonic").HarmonicSlot;
   left: VoiceTickState;
   right: VoiceTickState;
+  center: VoiceTickState;
 }

@@ -25,7 +25,9 @@ for (const t of BOUNDARY_TRANSITIONS) {
       Math.abs(snap.left.frequency - after[m].left.frequency) < 1e-4 &&
       Math.abs(snap.left.gain - after[m].left.gain) < 1e-8 &&
       Math.abs(snap.right.frequency - after[m].right.frequency) < 1e-4 &&
-      Math.abs(snap.right.gain - after[m].right.gain) < 1e-8,
+      Math.abs(snap.right.gain - after[m].right.gain) < 1e-8 &&
+      Math.abs(snap.center.frequency - after[m].center.frequency) < 1e-4 &&
+      Math.abs(snap.center.gain - after[m].center.gain) < 1e-8,
   );
   console.log(`  ${ok ? "OK" : "FAIL"}  ${t.label}`);
 }
@@ -39,12 +41,12 @@ if (!report.ok) {
   }
 }
 
-console.log("\n=== Carrier на каждом стыке (L freq / gain) ===\n");
+console.log("\n=== Carrier на каждом стыке (center freq / gain) ===\n");
 const carrierIndex = CHOIR_MEMBERS.find((m) => m.slot === 0)!.index;
 
 for (const t of BOUNDARY_TRANSITIONS) {
-  const end = computeChoirAtIntervalEdge(t.fromIntervalIndex, "end")[carrierIndex].left;
-  const start = computeChoirAtIntervalEdge(t.toIntervalIndex, "start")[carrierIndex].left;
+  const end = computeChoirAtIntervalEdge(t.fromIntervalIndex, "end")[carrierIndex].center;
+  const start = computeChoirAtIntervalEdge(t.toIntervalIndex, "start")[carrierIndex].center;
   console.log(
     `  ${t.label}\n    end:   ${end.frequency.toFixed(2)} Hz  gain ${end.gain.toFixed(6)}\n    start: ${start.frequency.toFixed(2)} Hz  gain ${start.gain.toFixed(6)}`,
   );

@@ -113,7 +113,11 @@ export function verifyBoundaryContinuity(): BoundaryContinuityReport {
     const after = computeChoirAtIntervalEdge(transition.toIntervalIndex, "start");
 
     for (let m = 0; m < before.length; m++) {
-      if (channelEqual(before[m].left, after[m].left) && channelEqual(before[m].right, after[m].right)) {
+      if (
+        channelEqual(before[m].left, after[m].left) &&
+        channelEqual(before[m].right, after[m].right) &&
+        channelEqual(before[m].center, after[m].center)
+      ) {
         continue;
       }
       const L = before[m].left;

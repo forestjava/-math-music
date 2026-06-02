@@ -52,6 +52,33 @@ export function sampleChannelAt(
   return CHOIR_MEMBERS.map((member) => sampleVoiceAt(elapsed, member.slot, side));
 }
 
+/** y(elapsed): частота и gain одного голоса центральной пирамиды (без ±ритм/2). */
+export function sampleCenterVoiceAt(elapsed: number, slot: HarmonicSlot): VoiceSample {
+  const position = getIntervalPosition(elapsed);
+  const { intervalIndex, progress, interval } = position;
+  const peakCarrier = carrierCenterHz(intervalIndex, progress);
+  const center = memberCenterHz(slot, peakCarrier, intervalIndex);
+  const gain = memberGainAt(
+    slot,
+    intervalIndex,
+    progress,
+    interval.isDescent,
+    interval.isAscent,
+    PLATEAU_INTERVAL_INDEX,
+    ASCENT_INTERVAL_START,
+  );
+
+  return {
+    frequency: center,
+    gain,
+  };
+}
+
+/** y(elapsed): все голоса центральной пирамиды. */
+export function sampleCenterChannelAt(elapsed: number): VoiceSample[] {
+  return CHOIR_MEMBERS.map((member) => sampleCenterVoiceAt(elapsed, member.slot));
+}
+
 function voiceStateAtPoint(sample: VoiceSample): VoiceTickState {
   return {
     frequency: sample.frequency,
@@ -65,12 +92,14 @@ export function computeMemberSnapshot(memberIndex: number, elapsed: number): Cho
   const member = CHOIR_MEMBERS[memberIndex];
   const left = sampleVoiceAt(elapsed, member.slot, "left");
   const right = sampleVoiceAt(elapsed, member.slot, "right");
+  const center = sampleCenterVoiceAt(elapsed, member.slot);
 
   return {
     memberIndex,
     slot: member.slot,
     left: voiceStateAtPoint(left),
     right: voiceStateAtPoint(right),
+    center: voiceStateAtPoint(center),
   };
 }
 
@@ -98,4 +127,9 @@ export function computeChannelOutputs(
   side: ChannelSide,
 ): VoiceSample[] {
   return sampleChannelAt(elapsed, side);
+}
+
+/** Алиас для планировщика: значения центральной пирамиды в одной точке elapsed. */
+export function computeCenterOutputs(elapsed: number): VoiceSample[] {
+  return sampleCenterChannelAt(elapsed);
 }

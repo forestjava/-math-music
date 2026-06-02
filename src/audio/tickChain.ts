@@ -1,6 +1,6 @@
 import { DURATION_SECONDS } from "../session/duration";
 import { alignToTickStart, nextTickAfter } from "../session/tickModel";
-import { sampleChannelAt } from "./voices/compute";
+import { sampleCenterChannelAt, sampleChannelAt } from "./voices/compute";
 import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
 import type { ChannelSide } from "./voices/types";
 
@@ -15,6 +15,7 @@ export interface TickChainTarget {
   context: AudioContext;
   left: ScheduledChannel;
   right: ScheduledChannel;
+  center: ScheduledChannel;
   sessionStartAudio: number;
   getPlaybackState: () => "stopped" | "playing" | "paused";
   onSessionEnd?: () => void;
@@ -47,7 +48,7 @@ export class TickChainScheduler {
 
   cancelScheduledParams(target: TickChainTarget): void {
     const now = target.context.currentTime;
-    for (const channel of [target.left, target.right]) {
+    for (const channel of [target.left, target.right, target.center]) {
       for (let i = 0; i < CHOIR_MEMBER_COUNT; i++) {
         channel.oscillators[i].frequency.cancelScheduledValues(now);
         channel.voiceGains[i].gain.cancelScheduledValues(now);
@@ -71,6 +72,7 @@ export class TickChainScheduler {
 
     this.scheduleChannelRamp(target, "left", tick.startElapsed, tick.endElapsed, audioStart, audioEnd, now);
     this.scheduleChannelRamp(target, "right", tick.startElapsed, tick.endElapsed, audioStart, audioEnd, now);
+    this.scheduleCenterRamp(target, tick.startElapsed, tick.endElapsed, audioStart, audioEnd, now);
 
     this.needsSetValue = false;
     this.cursorElapsed = tick.endElapsed;
@@ -103,6 +105,31 @@ export class TickChainScheduler {
 
     if (this.needsSetValue && audioStart >= now - 1e-6) {
       const startSamples = sampleChannelAt(tickStartElapsed, side);
+      for (let i = 0; i < CHOIR_MEMBER_COUNT; i++) {
+        channel.oscillators[i].frequency.setValueAtTime(startSamples[i].frequency, audioStart);
+        channel.voiceGains[i].gain.setValueAtTime(startSamples[i].gain, audioStart);
+      }
+    }
+
+    for (let i = 0; i < CHOIR_MEMBER_COUNT; i++) {
+      channel.oscillators[i].frequency.linearRampToValueAtTime(endSamples[i].frequency, audioEnd);
+      channel.voiceGains[i].gain.linearRampToValueAtTime(endSamples[i].gain, audioEnd);
+    }
+  }
+
+  private scheduleCenterRamp(
+    target: TickChainTarget,
+    tickStartElapsed: number,
+    tickEndElapsed: number,
+    audioStart: number,
+    audioEnd: number,
+    now: number,
+  ): void {
+    const channel = target.center;
+    const endSamples = sampleCenterChannelAt(tickEndElapsed);
+
+    if (this.needsSetValue && audioStart >= now - 1e-6) {
+      const startSamples = sampleCenterChannelAt(tickStartElapsed);
       for (let i = 0; i < CHOIR_MEMBER_COUNT; i++) {
         channel.oscillators[i].frequency.setValueAtTime(startSamples[i].frequency, audioStart);
         channel.voiceGains[i].gain.setValueAtTime(startSamples[i].gain, audioStart);
