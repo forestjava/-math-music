@@ -44,8 +44,15 @@ export function intervalEndElapsed(index: number): number {
   return elapsed;
 }
 
+/** Позиция внутри одного цикла сессии [0, DURATION_SECONDS). */
+export function sessionPhaseElapsed(elapsedSeconds: number): number {
+  if (DURATION_SECONDS <= 0) return 0;
+  const mod = elapsedSeconds % DURATION_SECONDS;
+  return mod < 0 ? mod + DURATION_SECONDS : mod;
+}
+
 export function getIntervalPosition(elapsedSeconds: number): IntervalPosition {
-  const elapsed = Math.max(0, Math.min(elapsedSeconds, DURATION_SECONDS));
+  const elapsed = sessionPhaseElapsed(elapsedSeconds);
   let startElapsed = 0;
 
   for (let intervalIndex = 0; intervalIndex < INTERVALS.length; intervalIndex++) {
@@ -83,13 +90,14 @@ export function getRhythmAt(position: IntervalPosition): number {
 }
 
 export function getSessionSnapshot(elapsedSeconds: number): SessionSnapshot {
-  const position = getIntervalPosition(elapsedSeconds);
+  const phase = sessionPhaseElapsed(elapsedSeconds);
+  const position = getIntervalPosition(phase);
   const rhythm = getRhythmAt(position);
   const carrier = carrierCenterHz(position.intervalIndex, position.progress);
   const halfRhythm = rhythm / 2;
 
   return {
-    elapsed: Math.max(0, Math.min(elapsedSeconds, DURATION_SECONDS)),
+    elapsed: phase,
     interval: position.interval,
     intervalIndex: position.intervalIndex,
     intervalProgress: position.progress,

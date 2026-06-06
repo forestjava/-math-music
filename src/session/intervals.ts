@@ -10,11 +10,11 @@ export interface IntervalDefinition {
   isAscent: boolean;
 }
 
-/** 2+4+6+8+10+4+3+2+1 = 40 отрезков. */
+/** 1+2+3+4+10+8+6+4+2 = 40 отрезков. */
 export const INTERVALS: IntervalDefinition[] = [
   {
     kind: "betaDescent",
-    segments: 2,
+    segments: 1,
     rhythmStart: 32,
     rhythmEnd: 16,
     carrierMultiplier: 8,
@@ -23,7 +23,7 @@ export const INTERVALS: IntervalDefinition[] = [
   },
   {
     kind: "alphaDescent",
-    segments: 4,
+    segments: 2,
     rhythmStart: 16,
     rhythmEnd: 8,
     carrierMultiplier: 16,
@@ -32,7 +32,7 @@ export const INTERVALS: IntervalDefinition[] = [
   },
   {
     kind: "thetaDescent",
-    segments: 6,
+    segments: 3,
     rhythmStart: 8,
     rhythmEnd: 4,
     carrierMultiplier: 32,
@@ -41,7 +41,7 @@ export const INTERVALS: IntervalDefinition[] = [
   },
   {
     kind: "deltaDescent",
-    segments: 8,
+    segments: 4,
     rhythmStart: 4,
     rhythmEnd: 0.5,
     carrierMultiplier: 64,
@@ -59,7 +59,7 @@ export const INTERVALS: IntervalDefinition[] = [
   },
   {
     kind: "deltaAscent",
-    segments: 4,
+    segments: 8,
     rhythmStart: 0.5,
     rhythmEnd: 4,
     carrierMultiplier: 64,
@@ -68,7 +68,7 @@ export const INTERVALS: IntervalDefinition[] = [
   },
   {
     kind: "thetaAscent",
-    segments: 3,
+    segments: 6,
     rhythmStart: 4,
     rhythmEnd: 8,
     carrierMultiplier: 32,
@@ -77,7 +77,7 @@ export const INTERVALS: IntervalDefinition[] = [
   },
   {
     kind: "alphaAscent",
-    segments: 2,
+    segments: 4,
     rhythmStart: 8,
     rhythmEnd: 16,
     carrierMultiplier: 16,
@@ -86,7 +86,7 @@ export const INTERVALS: IntervalDefinition[] = [
   },
   {
     kind: "betaAscent",
-    segments: 1,
+    segments: 2,
     rhythmStart: 16,
     rhythmEnd: 32,
     carrierMultiplier: 8,

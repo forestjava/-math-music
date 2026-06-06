@@ -1,4 +1,3 @@
-import { DURATION_SECONDS } from "../session/duration";
 import { alignToTickStart, nextTickAfter } from "../session/tickModel";
 import { sampleCenterChannelAt, sampleChannelAt } from "./voices/compute";
 import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
@@ -18,7 +17,6 @@ export interface TickChainTarget {
   center: ScheduledChannel;
   sessionStartAudio: number;
   getPlaybackState: () => "stopped" | "playing" | "paused";
-  onSessionEnd?: () => void;
 }
 
 export class TickChainScheduler {
@@ -61,10 +59,6 @@ export class TickChainScheduler {
     if (!target || target.getPlaybackState() !== "playing") return;
 
     const tick = nextTickAfter(this.cursorElapsed);
-    if (!tick) {
-      target.onSessionEnd?.();
-      return;
-    }
 
     const audioStart = target.sessionStartAudio + tick.startElapsed;
     const audioEnd = target.sessionStartAudio + tick.endElapsed;
@@ -76,16 +70,6 @@ export class TickChainScheduler {
 
     this.needsSetValue = false;
     this.cursorElapsed = tick.endElapsed;
-
-    if (tick.endElapsed >= DURATION_SECONDS) {
-      const delayMs = Math.max(DRIVER_MIN_DELAY_MS, (audioEnd - now) * 1000);
-      this.driverTimer = window.setTimeout(() => {
-        if (this.target?.getPlaybackState() === "playing") {
-          this.target.onSessionEnd?.();
-        }
-      }, delayMs);
-      return;
-    }
 
     const delayMs = Math.max(DRIVER_MIN_DELAY_MS, (audioEnd - now) * 1000);
     this.driverTimer = window.setTimeout(() => this.scheduleOneTick(), delayMs);

@@ -1,4 +1,3 @@
-import { DURATION_SECONDS } from "../session/duration";
 import { getSessionSnapshot, type IntervalKind } from "../session/config";
 import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
 import { computeCenterOutputs, computeChannelOutputs } from "./voices/compute";
@@ -226,7 +225,7 @@ export class BinauralSessionEngine {
 
   private getElapsedSeconds(): number {
     if (this.playbackState === "playing" && this.context) {
-      return Math.min(DURATION_SECONDS, this.context.currentTime - this.sessionStartAudio);
+      return Math.max(0, this.context.currentTime - this.sessionStartAudio);
     }
 
     return this.pausedElapsed;
@@ -261,7 +260,6 @@ export class BinauralSessionEngine {
         center: this.centerChannel,
         sessionStartAudio: this.sessionStartAudio,
         getPlaybackState: () => this.playbackState,
-        onSessionEnd: () => this.stop(),
       },
       this.getElapsedSeconds(),
     );
@@ -272,12 +270,6 @@ export class BinauralSessionEngine {
 
     const loop = () => {
       if (this.playbackState !== "playing") return;
-
-      const elapsed = this.getElapsedSeconds();
-      if (elapsed >= DURATION_SECONDS) {
-        this.stop();
-        return;
-      }
 
       this.emitValues();
       this.uiRafId = requestAnimationFrame(loop);

@@ -1,5 +1,5 @@
 import { DURATION_SECONDS } from "./duration";
-import { getIntervalPosition, getRhythmAt } from "./timeline";
+import { getIntervalPosition, getRhythmAt, sessionPhaseElapsed } from "./timeline";
 
 /** Период одного тика = 1 / текущий ритм (сек). */
 export function tickPeriodSeconds(rhythmHz: number): number {
@@ -34,35 +34,47 @@ export interface SessionTick {
   periodSeconds: number;
 }
 
-/** Следующий тик решётки с границы `elapsed` (один шаг, без массива). */
-export function nextTickAfter(elapsed: number): SessionTick | null {
-  if (elapsed >= DURATION_SECONDS) return null;
+/** Следующий тик решётки с границы `absoluteElapsed` (один шаг, без массива). */
+export function nextTickAfter(absoluteElapsed: number): SessionTick {
+  const startPhase = sessionPhaseElapsed(absoluteElapsed);
+  const period = tickPeriodAtElapsed(startPhase);
+  const endPhase = startPhase + period;
 
-  const startElapsed = Math.max(0, elapsed);
-  const period = tickPeriodAtElapsed(startElapsed);
-  const endElapsed = Math.min(DURATION_SECONDS, startElapsed + period);
+  if (endPhase <= DURATION_SECONDS + 1e-12) {
+    return {
+      index: -1,
+      startElapsed: absoluteElapsed,
+      endElapsed: absoluteElapsed + period,
+      periodSeconds: period,
+    };
+  }
 
+  const toBoundary = DURATION_SECONDS - startPhase;
   return {
     index: -1,
-    startElapsed,
-    endElapsed,
-    periodSeconds: endElapsed - startElapsed,
+    startElapsed: absoluteElapsed,
+    endElapsed: absoluteElapsed + toBoundary,
+    periodSeconds: toBoundary,
   };
 }
 
-/** Начало тика, в котором находится `elapsed` (для resume). */
-export function alignToTickStart(elapsed: number): number {
-  const clamped = Math.max(0, Math.min(elapsed, DURATION_SECONDS));
-  if (clamped <= 0) return 0;
+/** Начало тика, в котором находится `absoluteElapsed` (для resume). */
+export function alignToTickStart(absoluteElapsed: number): number {
+  const phase = sessionPhaseElapsed(absoluteElapsed);
+  const cycleBase = absoluteElapsed - phase;
+  if (phase <= 0) return cycleBase;
 
-  let cursor = 0;
-  while (cursor < clamped) {
+  let cursor = cycleBase;
+  const limit = cycleBase + phase + 1e-9;
+  while (cursor < limit) {
     const tick = nextTickAfter(cursor);
-    if (!tick || tick.endElapsed > clamped + 1e-9) return cursor;
+    if (tick.endElapsed > absoluteElapsed + 1e-9) {
+      return tick.startElapsed;
+    }
     cursor = tick.endElapsed;
   }
 
-  return cursor;
+  return cycleBase;
 }
 
 /** Генератор тиков сессии — только отладка и boundary scripts, не для play(). */
@@ -72,7 +84,6 @@ export function* iterateSessionTicks(): Generator<SessionTick> {
 
   while (elapsed < DURATION_SECONDS) {
     const tick = nextTickAfter(elapsed);
-    if (!tick) break;
     yield { ...tick, index };
     elapsed = tick.endElapsed;
     index += 1;

@@ -1,5 +1,5 @@
 /** Длительность сессии в минутах TODO вынести в UI */
-export const DURATION_MINUTES = 1;
+export const DURATION_MINUTES = 20;
 
 export const DURATION_SECONDS = DURATION_MINUTES * 60;
 

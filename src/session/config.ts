@@ -48,6 +48,7 @@ export {
   intervalDurationAt,
   intervalEndElapsed,
   lerp,
+  sessionPhaseElapsed,
   type IntervalPosition,
   type SessionSnapshot,
 } from "./timeline";
