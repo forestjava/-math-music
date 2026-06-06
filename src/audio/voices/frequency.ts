@@ -1,23 +1,24 @@
+import type { IntervalDefinition } from "../../session/intervals";
 import type { HarmonicSlot } from "./harmonic";
-import { ASCENT_INTERVAL_START, PLATEAU_INTERVAL_INDEX } from "../../session/config";
 
-/**
- * Фазовый индекс для частотной пирамиды.
- * Спуски 0..3 → 0..3; плато → 3; подъёмы → 3,2,1,0.
- * Не меняется скачком на стыках, поэтому частоты непрерывны
- * при скачке несущей вершины 128→256 между интервалами спуска.
- */
-export function frequencyPhaseIndex(intervalIndex: number): number {
-  if (intervalIndex <= 3) return intervalIndex;
-  if (intervalIndex === PLATEAU_INTERVAL_INDEX) return 3;
-  return 3 - (intervalIndex - ASCENT_INTERVAL_START);
+/** Слот вершины частотной пирамиды — из пары gainPeakSlotStart/End (без отдельной константы). */
+export function frequencyPeakSlot(interval: IntervalDefinition): number {
+  if (interval.gainPeakSlotStart === interval.gainPeakSlotEnd) {
+    return interval.gainPeakSlotStart;
+  }
+  const isDescent = interval.rhythmEnd < interval.rhythmStart;
+  return isDescent ? interval.gainPeakSlotStart : interval.gainPeakSlotEnd;
 }
 
-/** Центральная частота участника = несущая вершины × 2^(slot − phaseIndex). */
+/**
+ * Центральная частота = несущая вершины × 2^(slot − peakSlot).
+ * Gain-пик движется start→end; частотный якорь — start на спуске, end на подъёме
+ * (роль вершины переходит к другому осциллятору, прежний пик смещается и затухает).
+ */
 export function memberCenterHz(
   slot: HarmonicSlot,
   peakCarrierHz: number,
-  intervalIndex: number,
+  interval: IntervalDefinition,
 ): number {
-  return peakCarrierHz * 2 ** (slot - frequencyPhaseIndex(intervalIndex));
+  return peakCarrierHz * 2 ** (slot - frequencyPeakSlot(interval));
 }

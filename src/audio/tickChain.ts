@@ -17,6 +17,7 @@ export interface TickChainTarget {
   center: ScheduledChannel;
   sessionStartAudio: number;
   getPlaybackState: () => "stopped" | "playing" | "paused";
+  onSessionComplete?: () => void;
 }
 
 export class TickChainScheduler {
@@ -59,6 +60,10 @@ export class TickChainScheduler {
     if (!target || target.getPlaybackState() !== "playing") return;
 
     const tick = nextTickAfter(this.cursorElapsed);
+    if (tick.periodSeconds <= 0) {
+      target.onSessionComplete?.();
+      return;
+    }
 
     const audioStart = target.sessionStartAudio + tick.startElapsed;
     const audioEnd = target.sessionStartAudio + tick.endElapsed;

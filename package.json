@@ -8,9 +8,12 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "format": "prettier --write \"src/**/*.ts\"",
-    "check:boundaries": "tsx scripts/check-boundaries.ts"
+    "check:boundaries": "npx tsx scripts/check-boundaries.ts",
+    "check:loop-seam": "npx tsx scripts/check-loop-seam.ts",
+    "check": "npm run check:boundaries && npm run check:loop-seam"
   },
   "devDependencies": {
+    "@types/node": "^25.9.2",
     "prettier": "^3.8.3",
     "typescript": "^5.7.2",
     "vite": "^6.0.3"

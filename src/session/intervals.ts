@@ -1,105 +1,218 @@
-import type { IntervalKind } from "./config";
+export type Interval =
+  | "betaDescent"
+  | "alphaDescent"
+  | "thetaDescent"
+  | "deltaDescent"
+  | "deltaPlateau"
+  | "deltaAscent"
+  | "thetaAscent"
+  | "alphaAscent"
+  | "betaAscent";
 
 export interface IntervalDefinition {
-  kind: IntervalKind;
+  id: Interval;
+  label: string;
   segments: number;
   rhythmStart: number;
   rhythmEnd: number;
   carrierMultiplier: number;
-  isDescent: boolean;
-  isAscent: boolean;
+  /**
+   * Слот вершины пирамиды в начале / конце интервала (0…5).
+   * Gain и частоты ссылаются на одну и ту же вершину; роль пика
+   * переходит между осцилляторами — прежний разгоняется, затухает, уступает место.
+   */
+  gainPeakSlotStart: number;
+  gainPeakSlotEnd: number;
 }
 
-/** 1+2+3+4+10+8+6+4+2 = 40 отрезков. */
-export const INTERVALS: IntervalDefinition[] = [
+/** 2+4+6+8+10+4+3+2+1 = 40 отрезков — режим «мягкий». */
+export const SOFT_SESSION_INTERVALS: IntervalDefinition[] = [
   {
-    kind: "betaDescent",
-    segments: 1,
+    id: "betaDescent",
+    label: "Бета спуск",
+    segments: 2,
     rhythmStart: 32,
     rhythmEnd: 16,
     carrierMultiplier: 8,
-    isDescent: true,
-    isAscent: false,
+    gainPeakSlotStart: 0,
+    gainPeakSlotEnd: 1,
   },
   {
-    kind: "alphaDescent",
-    segments: 2,
+    id: "alphaDescent",
+    label: "Альфа спуск",
+    segments: 4,
     rhythmStart: 16,
     rhythmEnd: 8,
     carrierMultiplier: 16,
-    isDescent: true,
-    isAscent: false,
+    gainPeakSlotStart: 1,
+    gainPeakSlotEnd: 2,
   },
   {
-    kind: "thetaDescent",
-    segments: 3,
+    id: "thetaDescent",
+    label: "Тета спуск",
+    segments: 6,
     rhythmStart: 8,
     rhythmEnd: 4,
     carrierMultiplier: 32,
-    isDescent: true,
-    isAscent: false,
+    gainPeakSlotStart: 2,
+    gainPeakSlotEnd: 3,
   },
   {
-    kind: "deltaDescent",
-    segments: 4,
+    id: "deltaDescent",
+    label: "Дельта спуск",
+    segments: 8,
     rhythmStart: 4,
     rhythmEnd: 0.5,
     carrierMultiplier: 64,
-    isDescent: true,
-    isAscent: false,
+    gainPeakSlotStart: 3,
+    gainPeakSlotEnd: 3,
   },
   {
-    kind: "deltaPlateau",
+    id: "deltaPlateau",
+    label: "Дельта плато",
     segments: 10,
     rhythmStart: 0.5,
     rhythmEnd: 0.5,
     carrierMultiplier: 64,
-    isDescent: false,
-    isAscent: false,
+    gainPeakSlotStart: 3,
+    gainPeakSlotEnd: 3,
   },
   {
-    kind: "deltaAscent",
+    id: "deltaAscent",
+    label: "Дельта подъём",
+    segments: 4,
+    rhythmStart: 0.5,
+    rhythmEnd: 4,
+    carrierMultiplier: 64,
+    gainPeakSlotStart: 3,
+    gainPeakSlotEnd: 3,
+  },
+  {
+    id: "thetaAscent",
+    label: "Тета подъём",
+    segments: 3,
+    rhythmStart: 4,
+    rhythmEnd: 8,
+    carrierMultiplier: 32,
+    gainPeakSlotStart: 3,
+    gainPeakSlotEnd: 2,
+  },
+  {
+    id: "alphaAscent",
+    label: "Альфа подъём",
+    segments: 2,
+    rhythmStart: 8,
+    rhythmEnd: 16,
+    carrierMultiplier: 16,
+    gainPeakSlotStart: 2,
+    gainPeakSlotEnd: 1,
+  },
+  {
+    id: "betaAscent",
+    label: "Бета подъём",
+    segments: 1,
+    rhythmStart: 16,
+    rhythmEnd: 32,
+    carrierMultiplier: 8,
+    gainPeakSlotStart: 1,
+    gainPeakSlotEnd: 0,
+  },
+];
+
+/** 1+2+3+4+10+8+6+4+2 = 40 отрезков — режим «быстрый». */
+export const FAST_SESSION_INTERVALS: IntervalDefinition[] = [
+  {
+    id: "betaDescent",
+    label: "Бета спуск",
+    segments: 1,
+    rhythmStart: 32,
+    rhythmEnd: 16,
+    carrierMultiplier: 8,
+    gainPeakSlotStart: 0,
+    gainPeakSlotEnd: 1,
+  },
+  {
+    id: "alphaDescent",
+    label: "Альфа спуск",
+    segments: 2,
+    rhythmStart: 16,
+    rhythmEnd: 8,
+    carrierMultiplier: 16,
+    gainPeakSlotStart: 1,
+    gainPeakSlotEnd: 2,
+  },
+  {
+    id: "thetaDescent",
+    label: "Тета спуск",
+    segments: 3,
+    rhythmStart: 8,
+    rhythmEnd: 4,
+    carrierMultiplier: 32,
+    gainPeakSlotStart: 2,
+    gainPeakSlotEnd: 3,
+  },
+  {
+    id: "deltaDescent",
+    label: "Дельта спуск",
+    segments: 4,
+    rhythmStart: 4,
+    rhythmEnd: 0.5,
+    carrierMultiplier: 64,
+    gainPeakSlotStart: 3,
+    gainPeakSlotEnd: 3,
+  },
+  {
+    id: "deltaPlateau",
+    label: "Дельта плато",
+    segments: 10,
+    rhythmStart: 0.5,
+    rhythmEnd: 0.5,
+    carrierMultiplier: 64,
+    gainPeakSlotStart: 3,
+    gainPeakSlotEnd: 3,
+  },
+  {
+    id: "deltaAscent",
+    label: "Дельта подъём",
     segments: 8,
     rhythmStart: 0.5,
     rhythmEnd: 4,
     carrierMultiplier: 64,
-    isDescent: false,
-    isAscent: true,
+    gainPeakSlotStart: 3,
+    gainPeakSlotEnd: 3,
   },
   {
-    kind: "thetaAscent",
+    id: "thetaAscent",
+    label: "Тета подъём",
     segments: 6,
     rhythmStart: 4,
     rhythmEnd: 8,
     carrierMultiplier: 32,
-    isDescent: false,
-    isAscent: true,
+    gainPeakSlotStart: 3,
+    gainPeakSlotEnd: 2,
   },
   {
-    kind: "alphaAscent",
+    id: "alphaAscent",
+    label: "Альфа подъём",
     segments: 4,
     rhythmStart: 8,
     rhythmEnd: 16,
     carrierMultiplier: 16,
-    isDescent: false,
-    isAscent: true,
+    gainPeakSlotStart: 2,
+    gainPeakSlotEnd: 1,
   },
   {
-    kind: "betaAscent",
+    id: "betaAscent",
+    label: "Бета подъём",
     segments: 2,
     rhythmStart: 16,
     rhythmEnd: 32,
     carrierMultiplier: 8,
-    isDescent: false,
-    isAscent: true,
+    gainPeakSlotStart: 1,
+    gainPeakSlotEnd: 0,
   },
 ];
 
-export const INTERVAL_COUNT = INTERVALS.length;
-
-export const DESCENT_INTERVAL_COUNT = 4;
-export const DELTA_DESCENT_INDEX = 3;
-export const PLATEAU_INTERVAL_INDEX = 4;
-export const DELTA_ASCENT_INDEX = 5;
-export const ASCENT_INTERVAL_START = 5;
-export const THETA_ASCENT_INDEX = 6;
+export function totalSegments(intervals: IntervalDefinition[]): number {
+  return intervals.reduce((sum, interval) => sum + interval.segments, 0);
+}

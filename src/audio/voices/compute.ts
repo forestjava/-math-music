@@ -1,11 +1,5 @@
+import { getActiveSessionRuntime } from "../../session/activeRuntime";
 import { carrierCenterHz } from "../../session/carrierPlan";
-import {
-  ASCENT_INTERVAL_START,
-  getIntervalPosition,
-  getRhythmAt,
-  intervalEndElapsed,
-  PLATEAU_INTERVAL_INDEX,
-} from "../../session/config";
 import { CHOIR_MEMBERS } from "./choirMembers";
 import { memberCenterHz } from "./frequency";
 import type { HarmonicSlot } from "./harmonic";
@@ -23,20 +17,13 @@ export function sampleVoiceAt(
   slot: HarmonicSlot,
   side: ChannelSide,
 ): VoiceSample {
-  const position = getIntervalPosition(elapsed);
-  const { intervalIndex, progress, interval } = position;
-  const rhythm = getRhythmAt(position);
-  const peakCarrier = carrierCenterHz(intervalIndex, progress);
-  const center = memberCenterHz(slot, peakCarrier, intervalIndex);
-  const gain = memberGainAt(
-    slot,
-    intervalIndex,
-    progress,
-    interval.isDescent,
-    interval.isAscent,
-    PLATEAU_INTERVAL_INDEX,
-    ASCENT_INTERVAL_START,
-  );
+  const runtime = getActiveSessionRuntime();
+  const position = runtime.getIntervalPosition(elapsed);
+  const { progress, interval } = position;
+  const rhythm = runtime.getRhythmAt(position);
+  const peakCarrier = carrierCenterHz(interval, progress);
+  const center = memberCenterHz(slot, peakCarrier, interval);
+  const gain = memberGainAt(slot, interval, progress);
 
   return {
     frequency: channelFrequency(center, rhythm, side),
@@ -54,19 +41,12 @@ export function sampleChannelAt(
 
 /** y(elapsed): частота и gain одного голоса центральной пирамиды (без ±ритм/2). */
 export function sampleCenterVoiceAt(elapsed: number, slot: HarmonicSlot): VoiceSample {
-  const position = getIntervalPosition(elapsed);
-  const { intervalIndex, progress, interval } = position;
-  const peakCarrier = carrierCenterHz(intervalIndex, progress);
-  const center = memberCenterHz(slot, peakCarrier, intervalIndex);
-  const gain = memberGainAt(
-    slot,
-    intervalIndex,
-    progress,
-    interval.isDescent,
-    interval.isAscent,
-    PLATEAU_INTERVAL_INDEX,
-    ASCENT_INTERVAL_START,
-  );
+  const runtime = getActiveSessionRuntime();
+  const position = runtime.getIntervalPosition(elapsed);
+  const { progress, interval } = position;
+  const peakCarrier = carrierCenterHz(interval, progress);
+  const center = memberCenterHz(slot, peakCarrier, interval);
+  const gain = memberGainAt(slot, interval, progress);
 
   return {
     frequency: center,
@@ -112,12 +92,13 @@ export function computeChoirAtIntervalEdge(
   intervalIndex: number,
   edge: "start" | "end",
 ): ChoirMemberSnapshot[] {
+  const runtime = getActiveSessionRuntime();
   const elapsed =
     edge === "start"
       ? intervalIndex === 0
         ? 0
-        : intervalEndElapsed(intervalIndex - 1)
-      : intervalEndElapsed(intervalIndex) - 1e-12;
+        : runtime.intervalEndElapsed(intervalIndex - 1)
+      : runtime.intervalEndElapsed(intervalIndex) - 1e-12;
   return computeChoirAt(elapsed);
 }
 

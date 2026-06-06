@@ -1,15 +1,19 @@
-import { getPlanningSummary } from "../src/audio/voices/plan";
-import {
-  BOUNDARY_CHECKPOINTS,
-  BOUNDARY_TRANSITIONS,
-  verifyBoundaryContinuity,
-} from "../src/audio/voices/boundaryStates";
 import { computeChoirAtIntervalEdge } from "../src/audio/voices/compute";
 import { CHOIR_MEMBERS } from "../src/audio/voices/choirMembers";
-import { HARMONIC_LABELS } from "../src/audio/voices/harmonic";
+import { CHOIR_MEMBER_COUNT, HARMONIC_LABELS } from "../src/audio/voices/harmonic";
+import {
+  BOUNDARY_TRANSITIONS,
+  formatBoundaryReport,
+  getBoundaryCheckpoints,
+  transitionFailed,
+  verifyBoundaryContinuity,
+} from "./lib/boundaries";
+import { setupDefaultRuntime } from "./lib/setupRuntime";
+
+setupDefaultRuntime();
 
 console.log("=== Контрольные точки ===\n");
-for (const c of BOUNDARY_CHECKPOINTS) {
+for (const c of getBoundaryCheckpoints()) {
   const suffix = c.isEndpoint ? " (endpoint, не проверяется)" : "";
   console.log(`  ${c.label} @ ${c.elapsed.toFixed(3)}s${suffix}`);
 }
@@ -18,17 +22,7 @@ console.log("\n=== Результат проверки стыков ===\n");
 const report = verifyBoundaryContinuity();
 
 for (const t of BOUNDARY_TRANSITIONS) {
-  const before = computeChoirAtIntervalEdge(t.fromIntervalIndex, "end");
-  const after = computeChoirAtIntervalEdge(t.toIntervalIndex, "start");
-  const ok = before.every(
-    (snap, m) =>
-      Math.abs(snap.left.frequency - after[m].left.frequency) < 1e-4 &&
-      Math.abs(snap.left.gain - after[m].left.gain) < 1e-8 &&
-      Math.abs(snap.right.frequency - after[m].right.frequency) < 1e-4 &&
-      Math.abs(snap.right.gain - after[m].right.gain) < 1e-8 &&
-      Math.abs(snap.center.frequency - after[m].center.frequency) < 1e-4 &&
-      Math.abs(snap.center.gain - after[m].center.gain) < 1e-8,
-  );
+  const ok = !transitionFailed(report, t);
   console.log(`  ${ok ? "OK" : "FAIL"}  ${t.label}`);
 }
 
@@ -53,12 +47,32 @@ for (const t of BOUNDARY_TRANSITIONS) {
 }
 
 console.log("\n=== Пирамида gain на старте сессии ===\n");
-const start = computeChoirAtIntervalEdge(0, "start");
+const sessionStart = computeChoirAtIntervalEdge(0, "start");
 for (const m of CHOIR_MEMBERS) {
-  const s = start[m.index].left;
+  const s = sessionStart[m.index].left;
   console.log(
     `  ${HARMONIC_LABELS[m.slot].padEnd(8)} ${s.frequency.toFixed(2).padStart(8)} Hz  gain ${s.gain.toFixed(6)}`,
   );
 }
 
-console.log("\n" + getPlanningSummary());
+console.log("\n=== План хора ===\n");
+console.log(
+  [
+    `${CHOIR_MEMBER_COUNT} участников × 2 канала = ${CHOIR_MEMBER_COUNT * 2} осцилляторов`,
+    "Частоты: center × 2^slot; gain: алгоритмическая пирамида (спуск / плато / подъём).",
+    "Тики: период 1/ритм (0.5–32 Гц), без requestAnimationFrame.",
+    "",
+    "Контрольные точки:",
+    ...getBoundaryCheckpoints().map((c) => {
+      const mark = c.isEndpoint ? "" : ` ← ${c.elapsed.toFixed(2)}s`;
+      return `  • ${c.label}${mark}`;
+    }),
+    "",
+    "Проверяемые стыки:",
+    ...BOUNDARY_TRANSITIONS.map((t) => `  • ${t.label}`),
+    "",
+    formatBoundaryReport(report),
+  ].join("\n"),
+);
+
+process.exit(report.ok ? 0 : 1);

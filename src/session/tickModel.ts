@@ -1,5 +1,4 @@
-import { DURATION_SECONDS } from "./duration";
-import { getIntervalPosition, getRhythmAt, sessionPhaseElapsed } from "./timeline";
+import { getActiveSessionRuntime } from "./activeRuntime";
 
 /** Период одного тика = 1 / текущий ритм (сек). */
 export function tickPeriodSeconds(rhythmHz: number): number {
@@ -7,8 +6,9 @@ export function tickPeriodSeconds(rhythmHz: number): number {
 }
 
 export function tickPeriodAtElapsed(elapsedSeconds: number): number {
-  const position = getIntervalPosition(elapsedSeconds);
-  return tickPeriodSeconds(getRhythmAt(position));
+  const runtime = getActiveSessionRuntime();
+  const position = runtime.getIntervalPosition(elapsedSeconds);
+  return tickPeriodSeconds(runtime.getRhythmAt(position));
 }
 
 /**
@@ -16,10 +16,11 @@ export function tickPeriodAtElapsed(elapsedSeconds: number): number {
  * Используется для отладки; проигрывание идёт непрерывно по накопленному времени.
  */
 export function estimateTickCount(): number {
+  const runtime = getActiveSessionRuntime();
   let elapsed = 0;
   let ticks = 0;
 
-  while (elapsed < DURATION_SECONDS) {
+  while (elapsed < runtime.durationSeconds) {
     ticks += 1;
     elapsed += tickPeriodAtElapsed(elapsed);
   }
@@ -36,11 +37,22 @@ export interface SessionTick {
 
 /** Следующий тик решётки с границы `absoluteElapsed` (один шаг, без массива). */
 export function nextTickAfter(absoluteElapsed: number): SessionTick {
-  const startPhase = sessionPhaseElapsed(absoluteElapsed);
+  const runtime = getActiveSessionRuntime();
+  const startPhase = runtime.sessionPhaseElapsed(absoluteElapsed);
+
+  if (!runtime.settings.loop && startPhase >= runtime.durationSeconds - 1e-12) {
+    return {
+      index: -1,
+      startElapsed: absoluteElapsed,
+      endElapsed: absoluteElapsed,
+      periodSeconds: 0,
+    };
+  }
+
   const period = tickPeriodAtElapsed(startPhase);
   const endPhase = startPhase + period;
 
-  if (endPhase <= DURATION_SECONDS + 1e-12) {
+  if (endPhase <= runtime.durationSeconds + 1e-12) {
     return {
       index: -1,
       startElapsed: absoluteElapsed,
@@ -49,7 +61,7 @@ export function nextTickAfter(absoluteElapsed: number): SessionTick {
     };
   }
 
-  const toBoundary = DURATION_SECONDS - startPhase;
+  const toBoundary = runtime.durationSeconds - startPhase;
   return {
     index: -1,
     startElapsed: absoluteElapsed,
@@ -60,7 +72,8 @@ export function nextTickAfter(absoluteElapsed: number): SessionTick {
 
 /** Начало тика, в котором находится `absoluteElapsed` (для resume). */
 export function alignToTickStart(absoluteElapsed: number): number {
-  const phase = sessionPhaseElapsed(absoluteElapsed);
+  const runtime = getActiveSessionRuntime();
+  const phase = runtime.sessionPhaseElapsed(absoluteElapsed);
   const cycleBase = absoluteElapsed - phase;
   if (phase <= 0) return cycleBase;
 
@@ -79,12 +92,14 @@ export function alignToTickStart(absoluteElapsed: number): number {
 
 /** Генератор тиков сессии — только отладка и boundary scripts, не для play(). */
 export function* iterateSessionTicks(): Generator<SessionTick> {
+  const runtime = getActiveSessionRuntime();
   let elapsed = 0;
   let index = 0;
 
-  while (elapsed < DURATION_SECONDS) {
+  while (elapsed < runtime.durationSeconds) {
     const tick = nextTickAfter(elapsed);
     yield { ...tick, index };
+    if (tick.periodSeconds <= 0) break;
     elapsed = tick.endElapsed;
     index += 1;
   }

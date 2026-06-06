@@ -1,4 +1,7 @@
-import { getSessionSnapshot, type IntervalKind } from "../session/config";
+import { setActiveSessionRuntime } from "../session/activeRuntime";
+import type { Interval } from "../session/intervals";
+import { SessionRuntime } from "../session/runtime";
+import type { SessionSettings } from "../session/settings";
 import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
 import { computeCenterOutputs, computeChannelOutputs } from "./voices/compute";
 import { TickChainScheduler, type ScheduledChannel } from "./tickChain";
@@ -13,11 +16,14 @@ export type PlaybackState = "stopped" | "playing" | "paused";
 export interface LiveValues {
   playbackState: PlaybackState;
   elapsed: number;
+  absoluteElapsed: number;
+  durationSeconds: number;
+  loop: boolean;
   rhythm: number;
   carrier: number;
   leftCarrier: number;
   rightCarrier: number;
-  intervalLabel: string;
+  intervalId: Interval;
 }
 
 type ValuesListener = (values: LiveValues) => void;
@@ -35,6 +41,32 @@ export class BinauralSessionEngine {
   private pausedElapsed = 0;
   private uiRafId = 0;
   private valuesListener: ValuesListener | null = null;
+  private settings: SessionSettings;
+  private runtime: SessionRuntime;
+
+  constructor(settings: SessionSettings) {
+    this.settings = { ...settings };
+    this.runtime = new SessionRuntime(this.settings);
+    setActiveSessionRuntime(this.runtime);
+  }
+
+  getSessionSettings(): SessionSettings {
+    return { ...this.settings };
+  }
+
+  getSessionRuntime(): SessionRuntime {
+    return this.runtime;
+  }
+
+  setSessionSettings(settings: SessionSettings): boolean {
+    if (this.playbackState !== "stopped") return false;
+
+    this.settings = { ...settings };
+    this.runtime = new SessionRuntime(this.settings);
+    setActiveSessionRuntime(this.runtime);
+    this.emitValues();
+    return true;
+  }
 
   setValuesListener(listener: ValuesListener | null): void {
     this.valuesListener = listener;
@@ -61,6 +93,7 @@ export class BinauralSessionEngine {
       this.startOscillators();
     }
 
+    setActiveSessionRuntime(this.runtime);
     this.playbackState = "playing";
     this.sessionStartAudio = this.context.currentTime - this.pausedElapsed;
 
@@ -260,9 +293,15 @@ export class BinauralSessionEngine {
         center: this.centerChannel,
         sessionStartAudio: this.sessionStartAudio,
         getPlaybackState: () => this.playbackState,
+        onSessionComplete: () => this.handleSessionComplete(),
       },
       this.getElapsedSeconds(),
     );
+  }
+
+  private handleSessionComplete(): void {
+    if (this.playbackState !== "playing") return;
+    this.pause();
   }
 
   private startUiLoop(): void {
@@ -270,6 +309,12 @@ export class BinauralSessionEngine {
 
     const loop = () => {
       if (this.playbackState !== "playing") return;
+
+      const elapsed = this.getElapsedSeconds();
+      if (this.runtime.isSessionComplete(elapsed)) {
+        this.handleSessionComplete();
+        return;
+      }
 
       this.emitValues();
       this.uiRafId = requestAnimationFrame(loop);
@@ -288,16 +333,20 @@ export class BinauralSessionEngine {
   private emitValues(): void {
     if (!this.valuesListener) return;
 
-    const snapshot = getSessionSnapshot(this.getElapsedSeconds());
+    const absoluteElapsed = this.getElapsedSeconds();
+    const snapshot = this.runtime.getSessionSnapshot(absoluteElapsed);
 
     this.valuesListener({
       playbackState: this.playbackState,
       elapsed: snapshot.elapsed,
+      absoluteElapsed,
+      durationSeconds: this.runtime.durationSeconds,
+      loop: this.settings.loop,
       rhythm: snapshot.rhythm,
       carrier: snapshot.carrier,
       leftCarrier: snapshot.leftCarrier,
       rightCarrier: snapshot.rightCarrier,
-      intervalLabel: snapshot.interval.kind,
+      intervalId: snapshot.interval.id,
     });
   }
 }
@@ -307,19 +356,4 @@ export function formatTime(seconds: number): string {
   const minutes = Math.floor(total / 60);
   const secs = total % 60;
   return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-}
-
-export function intervalLabel(kind: string): string {
-  const labels: Record<IntervalKind, string> = {
-    betaDescent: "Бета спуск",
-    alphaDescent: "Альфа спуск",
-    thetaDescent: "Тета спуск",
-    deltaDescent: "Дельта спуск",
-    deltaPlateau: "Дельта плато",
-    deltaAscent: "Дельта подъём",
-    thetaAscent: "Тета подъём",
-    alphaAscent: "Альфа подъём",
-    betaAscent: "Бета подъём",
-  };
-  return labels[kind as IntervalKind] ?? kind;
 }

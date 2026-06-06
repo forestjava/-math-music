@@ -38,6 +38,111 @@ body {
   color: #9aa8c7;
 }
 
+.player__settings {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid #24304d;
+  background: rgba(8, 16, 31, 0.45);
+}
+
+.player__field {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.player__field-label {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7c8db3;
+}
+
+.player__field-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player__field-suffix {
+  color: #9aa8c7;
+}
+
+.player__input {
+  width: 88px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e8ecf8;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.player__input:disabled,
+.player__checkbox:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.player__mode-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.player__mode-option {
+  flex: 1;
+  display: block;
+  cursor: pointer;
+}
+
+.player__mode-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.player__mode-option span {
+  display: block;
+  text-align: center;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid #334155;
+  background: #111827;
+  color: #dbeafe;
+  font-weight: 600;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.player__mode-option input:checked + span {
+  background: #1d4ed8;
+  border-color: #3b82f6;
+  color: #eff6ff;
+}
+
+.player__mode-option input:disabled + span {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.player__field--checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #dbeafe;
+  cursor: pointer;
+}
+
+.player__checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: #3b82f6;
+}
+
 .player__controls {
   display: flex;
   gap: 12px;
