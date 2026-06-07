@@ -3,6 +3,7 @@ import {
   formatTime,
   type LiveValues,
 } from "../audio/binauralEngine";
+import { speak } from "../audio/ttsTest";
 import { getActiveSessionRuntime } from "../session/activeRuntime";
 import type { IntervalDefinition } from "../session/intervals";
 import {
@@ -82,6 +83,23 @@ export function mountPlayer(root: HTMLElement): void {
           <div><dt>R канал</dt><dd data-el="right">—</dd></div>
         </dl>
       </section>
+      <section class="player__tts-test">
+        <h2 class="player__tts-title">TTS Test (временно)</h2>
+        <label class="player__field">
+          <span class="player__field-label">Текст</span>
+          <textarea
+            class="player__tts-text"
+            data-el="tts-text"
+            rows="3"
+          >Сделай глубокий вдох. Медленно выдохни. Ты в безопасности.</textarea>
+        </label>
+        <div class="player__tts-actions">
+          <button type="button" class="player__button player__button--secondary" data-action="tts-speak">
+            Speak
+          </button>
+          <span class="player__tts-status" data-el="tts-status">—</span>
+        </div>
+      </section>
     </main>
   `;
 
@@ -92,6 +110,9 @@ export function mountPlayer(root: HTMLElement): void {
   const loopCheckbox = root.querySelector<HTMLInputElement>('[data-setting="loop"]')!;
   const modeSoftInput = root.querySelector<HTMLInputElement>('[data-setting="mode-soft"]')!;
   const modeFastInput = root.querySelector<HTMLInputElement>('[data-setting="mode-fast"]')!;
+  const ttsSpeakButton = root.querySelector<HTMLButtonElement>('[data-action="tts-speak"]')!;
+  const ttsTextArea = root.querySelector<HTMLTextAreaElement>('[data-el="tts-text"]')!;
+  const ttsStatusEl = root.querySelector<HTMLSpanElement>('[data-el="tts-status"]')!;
   renderIntervalMarkers(intervalsEl, getActiveSessionRuntime().intervals);
   updateSubtitle(root, settings);
   setSettingsEnabled(root, true);
@@ -120,6 +141,29 @@ export function mountPlayer(root: HTMLElement): void {
 
   modeFastInput.addEventListener("change", () => {
     if (modeFastInput.checked) applySettingsFromUi();
+  });
+
+  ttsSpeakButton.addEventListener("click", () => {
+    const text = ttsTextArea.value.trim();
+    if (!text) {
+      ttsStatusEl.textContent = "Введите текст";
+      return;
+    }
+
+    ttsSpeakButton.disabled = true;
+    ttsStatusEl.textContent = "Запрос…";
+
+    void speak(text)
+      .then(() => {
+        ttsStatusEl.textContent = "Воспроизведение";
+      })
+      .catch((error: unknown) => {
+        ttsStatusEl.textContent =
+          error instanceof Error ? error.message : "Ошибка TTS";
+      })
+      .finally(() => {
+        ttsSpeakButton.disabled = false;
+      });
   });
 
   engine.setValuesListener((values) => {
