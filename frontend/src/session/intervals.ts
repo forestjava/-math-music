@@ -23,6 +23,10 @@ export interface IntervalDefinition {
    */
   gainPeakSlotStart: number;
   gainPeakSlotEnd: number;
+  /** Минимальная пауза между фразами нарратора в этом интервале (сек). */
+  narratorPauseSeconds: number;
+  /** Скорость речи нарратора в этом интервале (Yandex TTS speed). */
+  narratorSpeed: number;
 }
 
 /** 2+4+6+8+10+4+3+2+1 = 40 отрезков — режим «мягкий». */
@@ -36,6 +40,8 @@ export const SOFT_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 8,
     gainPeakSlotStart: 0,
     gainPeakSlotEnd: 1,
+    narratorPauseSeconds: 64,
+    narratorSpeed: 0.95,
   },
   {
     id: "alphaDescent",
@@ -46,6 +52,8 @@ export const SOFT_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 16,
     gainPeakSlotStart: 1,
     gainPeakSlotEnd: 2,
+    narratorPauseSeconds: 32,
+    narratorSpeed: 0.9,
   },
   {
     id: "thetaDescent",
@@ -56,6 +64,8 @@ export const SOFT_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 32,
     gainPeakSlotStart: 2,
     gainPeakSlotEnd: 3,
+    narratorPauseSeconds: 16,
+    narratorSpeed: 0.85,
   },
   {
     id: "deltaDescent",
@@ -66,6 +76,8 @@ export const SOFT_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 64,
     gainPeakSlotStart: 3,
     gainPeakSlotEnd: 3,
+    narratorPauseSeconds: 8,
+    narratorSpeed: 0.8,
   },
   {
     id: "deltaPlateau",
@@ -76,6 +88,8 @@ export const SOFT_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 64,
     gainPeakSlotStart: 3,
     gainPeakSlotEnd: 3,
+    narratorPauseSeconds: 4,
+    narratorSpeed: 0.75,
   },
   {
     id: "deltaAscent",
@@ -86,6 +100,8 @@ export const SOFT_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 64,
     gainPeakSlotStart: 3,
     gainPeakSlotEnd: 3,
+    narratorPauseSeconds: 8,
+    narratorSpeed: 0.8,
   },
   {
     id: "thetaAscent",
@@ -96,6 +112,8 @@ export const SOFT_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 32,
     gainPeakSlotStart: 3,
     gainPeakSlotEnd: 2,
+    narratorPauseSeconds: 16,
+    narratorSpeed: 0.85,
   },
   {
     id: "alphaAscent",
@@ -106,6 +124,8 @@ export const SOFT_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 16,
     gainPeakSlotStart: 2,
     gainPeakSlotEnd: 1,
+    narratorPauseSeconds: 32,
+    narratorSpeed: 0.9,
   },
   {
     id: "betaAscent",
@@ -116,6 +136,8 @@ export const SOFT_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 8,
     gainPeakSlotStart: 1,
     gainPeakSlotEnd: 0,
+    narratorPauseSeconds: 64,
+    narratorSpeed: 0.95,
   },
 ];
 
@@ -130,6 +152,8 @@ export const FAST_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 8,
     gainPeakSlotStart: 0,
     gainPeakSlotEnd: 1,
+    narratorPauseSeconds: 64,
+    narratorSpeed: 0.95,
   },
   {
     id: "alphaDescent",
@@ -140,6 +164,8 @@ export const FAST_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 16,
     gainPeakSlotStart: 1,
     gainPeakSlotEnd: 2,
+    narratorPauseSeconds: 32,
+    narratorSpeed: 0.9,
   },
   {
     id: "thetaDescent",
@@ -150,6 +176,8 @@ export const FAST_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 32,
     gainPeakSlotStart: 2,
     gainPeakSlotEnd: 3,
+    narratorPauseSeconds: 16,
+    narratorSpeed: 0.85,
   },
   {
     id: "deltaDescent",
@@ -160,6 +188,8 @@ export const FAST_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 64,
     gainPeakSlotStart: 3,
     gainPeakSlotEnd: 3,
+    narratorPauseSeconds: 8,
+    narratorSpeed: 0.8,
   },
   {
     id: "deltaPlateau",
@@ -170,6 +200,8 @@ export const FAST_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 64,
     gainPeakSlotStart: 3,
     gainPeakSlotEnd: 3,
+    narratorPauseSeconds: 4,
+    narratorSpeed: 0.75,
   },
   {
     id: "deltaAscent",
@@ -180,6 +212,8 @@ export const FAST_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 64,
     gainPeakSlotStart: 3,
     gainPeakSlotEnd: 3,
+    narratorPauseSeconds: 8,
+    narratorSpeed: 0.8,
   },
   {
     id: "thetaAscent",
@@ -190,6 +224,8 @@ export const FAST_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 32,
     gainPeakSlotStart: 3,
     gainPeakSlotEnd: 2,
+    narratorPauseSeconds: 16,
+    narratorSpeed: 0.85,
   },
   {
     id: "alphaAscent",
@@ -200,6 +236,8 @@ export const FAST_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 16,
     gainPeakSlotStart: 2,
     gainPeakSlotEnd: 1,
+    narratorPauseSeconds: 32,
+    narratorSpeed: 0.9,
   },
   {
     id: "betaAscent",
@@ -210,6 +248,8 @@ export const FAST_SESSION_INTERVALS: IntervalDefinition[] = [
     carrierMultiplier: 8,
     gainPeakSlotStart: 1,
     gainPeakSlotEnd: 0,
+    narratorPauseSeconds: 64,
+    narratorSpeed: 0.95,
   },
 ];
 

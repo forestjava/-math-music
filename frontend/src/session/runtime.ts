@@ -11,6 +11,12 @@ export interface IntervalPosition {
   duration: number;
 }
 
+export interface PhaseDurations {
+  descent: number;
+  plateau: number;
+  ascent: number;
+}
+
 export interface SessionSnapshot {
   elapsed: number;
   interval: IntervalDefinition;
@@ -49,6 +55,34 @@ export class SessionRuntime {
       elapsed += this.intervalDurationAt(i);
     }
     return elapsed;
+  }
+
+  intervalStartElapsed(index: number): number {
+    let elapsed = 0;
+    for (let i = 0; i < index; i++) {
+      elapsed += this.intervalDurationAt(i);
+    }
+    return elapsed;
+  }
+
+  phaseDurations(): PhaseDurations {
+    let descent = 0;
+    let plateau = 0;
+    let ascent = 0;
+
+    for (let i = 0; i < this.intervals.length; i++) {
+      const duration = this.intervalDurationAt(i);
+      const id = this.intervals[i].id;
+      if (id === "deltaPlateau") {
+        plateau += duration;
+      } else if (id.endsWith("Ascent")) {
+        ascent += duration;
+      } else {
+        descent += duration;
+      }
+    }
+
+    return { descent, plateau, ascent };
   }
 
   sessionPhaseElapsed(elapsedSeconds: number): number {

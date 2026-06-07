@@ -2,6 +2,8 @@ import { setActiveSessionRuntime } from "../session/activeRuntime";
 import type { Interval } from "../session/intervals";
 import { SessionRuntime } from "../session/runtime";
 import type { SessionSettings } from "../session/settings";
+import { NarratorLoop } from "../session/narrator/narratorLoop";
+import { NarratorChannel } from "./narrator/narratorChannel";
 import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
 import { computeCenterOutputs, computeChannelOutputs } from "./voices/compute";
 import { TickChainScheduler, type ScheduledChannel } from "./tickChain";
@@ -9,7 +11,9 @@ import { randomPhaseWave } from "./waveform";
 
 const FADE_SECONDS = 0.2;
 const FADE_DELAY_MS = FADE_SECONDS * 1000 + 100;
-const MASTER_OUTPUT_LEVEL = 0.18;
+const MASTER_OUTPUT_LEVEL = 0.1;
+/** Постоянная времени сглаживания огибающей мастер-уровня на дельта-плато. */
+const MASTER_SWELL_SMOOTHING = 0.1;
 
 export type PlaybackState = "stopped" | "playing" | "paused";
 
@@ -35,6 +39,11 @@ export class BinauralSessionEngine {
   private rightChannel: ScheduledChannel | null = null;
   private centerChannel: ScheduledChannel | null = null;
   private readonly scheduler = new TickChainScheduler();
+
+  private narratorChannel: NarratorChannel | null = null;
+  private narratorLoop: NarratorLoop | null = null;
+  private effectsStarted = false;
+  private finishing = false;
 
   private playbackState: PlaybackState = "stopped";
   private sessionStartAudio = 0;
@@ -82,21 +91,39 @@ export class BinauralSessionEngine {
     if (!this.context) {
       this.context = new AudioContext();
       this.buildGraph();
+      this.createNarrator();
     }
 
     if (this.context.state === "suspended") {
       await this.context.resume();
     }
 
-    if (this.playbackState === "stopped") {
+    setActiveSessionRuntime(this.runtime);
+    const wasStopped = this.playbackState === "stopped";
+    this.playbackState = "playing";
+
+    if (wasStopped || !this.effectsStarted) {
       this.pausedElapsed = 0;
-      this.startOscillators();
+      this.sessionStartAudio = this.context.currentTime;
+      this.emitValues();
+      await this.narratorLoop?.start();
+      return;
     }
 
-    setActiveSessionRuntime(this.runtime);
-    this.playbackState = "playing";
-    this.sessionStartAudio = this.context.currentTime - this.pausedElapsed;
+    this.beginEffects();
+    this.narratorLoop?.resume();
+  }
 
+  /** Запуск аудиальных эффектов (вызывается нарратором после вступления). */
+  private beginEffects(): void {
+    if (!this.context) return;
+
+    if (!this.effectsStarted) {
+      this.startOscillators();
+      this.effectsStarted = true;
+    }
+
+    this.sessionStartAudio = this.context.currentTime - this.pausedElapsed;
     this.applyImmediateState(this.getElapsedSeconds());
     this.fadeMaster(1);
     this.startScheduler();
@@ -104,13 +131,29 @@ export class BinauralSessionEngine {
     this.emitValues();
   }
 
+  private createNarrator(): void {
+    if (!this.context) return;
+
+    this.narratorChannel = new NarratorChannel(this.context);
+    this.narratorLoop = new NarratorLoop({
+      context: this.context,
+      channel: this.narratorChannel,
+      getRuntime: () => this.runtime,
+      getElapsedSeconds: () => this.getElapsedSeconds(),
+      onEffectsReady: () => this.beginEffects(),
+      onSessionFinished: () => this.finalizeSession(),
+    });
+  }
+
   pause(): void {
     if (this.playbackState !== "playing" || !this.context) return;
 
-    this.pausedElapsed = this.getElapsedSeconds();
+    this.pausedElapsed = this.effectsStarted ? this.getElapsedSeconds() : 0;
     this.playbackState = "paused";
+    this.finishing = false;
     this.scheduler.stop();
     this.stopUiLoop();
+    this.narratorLoop?.pause();
 
     this.fadeMaster(0);
     window.setTimeout(() => {
@@ -125,8 +168,11 @@ export class BinauralSessionEngine {
 
     this.playbackState = "stopped";
     this.pausedElapsed = 0;
+    this.effectsStarted = false;
+    this.finishing = false;
     this.scheduler.stop();
     this.stopUiLoop();
+    this.narratorLoop?.stop();
 
     this.fadeMaster(0);
     window.setTimeout(() => {
@@ -241,6 +287,10 @@ export class BinauralSessionEngine {
     this.centerChannel = null;
     this.masterGain = null;
 
+    this.narratorChannel?.dispose();
+    this.narratorChannel = null;
+    this.narratorLoop = null;
+
     if (this.context) {
       void this.context.close();
       this.context = null;
@@ -254,6 +304,27 @@ export class BinauralSessionEngine {
     this.masterGain.gain.cancelScheduledValues(now);
     this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
     this.masterGain.gain.linearRampToValueAtTime(target * MASTER_OUTPUT_LEVEL, now + FADE_SECONDS);
+  }
+
+  /**
+   * Целевой мастер-уровень: базовый MASTER_OUTPUT_LEVEL, на дельта-плато —
+   * треугольная огибающая от уровня к 2× в середине интервала и обратно.
+   */
+  private masterLevelAt(elapsed: number): number {
+    const snapshot = this.runtime.getSessionSnapshot(elapsed);
+    if (snapshot.interval.id !== "deltaPlateau") {
+      return MASTER_OUTPUT_LEVEL;
+    }
+
+    const swell = 1 - Math.abs(snapshot.intervalProgress * 2 - 1);
+    return MASTER_OUTPUT_LEVEL * (1 + swell);
+  }
+
+  private updateMasterLevel(elapsed: number): void {
+    if (!this.context || !this.masterGain) return;
+
+    const now = this.context.currentTime;
+    this.masterGain.gain.setTargetAtTime(this.masterLevelAt(elapsed), now, MASTER_SWELL_SMOOTHING);
   }
 
   private getElapsedSeconds(): number {
@@ -300,8 +371,31 @@ export class BinauralSessionEngine {
   }
 
   private handleSessionComplete(): void {
-    if (this.playbackState !== "playing") return;
-    this.pause();
+    if (this.playbackState !== "playing" || this.finishing) return;
+
+    this.finishing = true;
+    this.scheduler.stop();
+    this.stopUiLoop();
+    this.fadeMaster(0);
+
+    if (this.narratorLoop) {
+      void this.narratorLoop.finish();
+    } else {
+      this.finalizeSession();
+    }
+  }
+
+  private finalizeSession(): void {
+    this.playbackState = "stopped";
+    this.pausedElapsed = 0;
+    this.effectsStarted = false;
+    this.finishing = false;
+    this.narratorLoop?.stop();
+
+    window.setTimeout(() => {
+      this.disposeOscillators();
+    }, FADE_DELAY_MS);
+    this.emitValues();
   }
 
   private startUiLoop(): void {
@@ -316,6 +410,7 @@ export class BinauralSessionEngine {
         return;
       }
 
+      this.updateMasterLevel(elapsed);
       this.emitValues();
       this.uiRafId = requestAnimationFrame(loop);
     };

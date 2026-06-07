@@ -91,7 +91,7 @@ body {
 
 .player__mode-toggle {
   display: flex;
-  gap: 8px;
+  gap: 0;
 }
 
 .player__mode-option {
@@ -110,12 +110,20 @@ body {
   display: block;
   text-align: center;
   padding: 10px 14px;
-  border-radius: 999px;
+  border-radius: 0;
   border: 1px solid #334155;
   background: #111827;
   color: #dbeafe;
   font-weight: 600;
   transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.player__mode-option input[value="soft"] + span {
+  border-radius: 999px 0 0 999px;
+}
+
+.player__mode-option input[value="fast"] + span {
+  border-radius: 0 999px 999px 0;
 }
 
 .player__mode-option input:checked + span {
@@ -254,41 +262,4 @@ body {
   margin: 0;
   font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
-}
-
-.player__tts-test {
-  display: grid;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 14px;
-  border: 1px dashed #475569;
-  background: rgba(8, 16, 31, 0.35);
-}
-
-.player__tts-title {
-  margin: 0;
-  font-size: 0.95rem;
-  color: #94a3b8;
-}
-
-.player__tts-text {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid #334155;
-  background: #0f172a;
-  color: #e8ecf8;
-  font: inherit;
-  resize: vertical;
-}
-
-.player__tts-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.player__tts-status {
-  color: #9aa8c7;
-  font-size: 0.92rem;
 }

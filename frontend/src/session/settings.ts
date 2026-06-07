@@ -38,6 +38,6 @@ export const DEFAULT_DURATION_MINUTES = 20;
 
 export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   durationMinutes: DEFAULT_DURATION_MINUTES,
-  mode: FAST_SESSION_MODE.id,
-  loop: true,
+  mode: SOFT_SESSION_MODE.id,
+  loop: false,
 };
