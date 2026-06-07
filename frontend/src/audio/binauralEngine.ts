@@ -11,9 +11,8 @@ import { randomPhaseWave } from "./waveform";
 
 const FADE_SECONDS = 0.2;
 const FADE_DELAY_MS = FADE_SECONDS * 1000 + 100;
-const MASTER_OUTPUT_LEVEL = 0.1;
-/** Постоянная времени сглаживания огибающей мастер-уровня на дельта-плато. */
-const MASTER_SWELL_SMOOTHING = 0.1;
+/** Пиковый мастер-уровень в середине сессии (20-й из 40 отрезков). */
+const MAX_MASTER_OUTPUT_LEVEL = 0.15;
 
 export type PlaybackState = "stopped" | "playing" | "paused";
 
@@ -125,7 +124,6 @@ export class BinauralSessionEngine {
 
     this.sessionStartAudio = this.context.currentTime - this.pausedElapsed;
     this.applyImmediateState(this.getElapsedSeconds());
-    this.fadeMaster(1);
     this.startScheduler();
     this.startUiLoop();
     this.emitValues();
@@ -303,28 +301,24 @@ export class BinauralSessionEngine {
     const now = this.context.currentTime;
     this.masterGain.gain.cancelScheduledValues(now);
     this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
-    this.masterGain.gain.linearRampToValueAtTime(target * MASTER_OUTPUT_LEVEL, now + FADE_SECONDS);
+    this.masterGain.gain.linearRampToValueAtTime(target, now + FADE_SECONDS);
   }
 
   /**
-   * Целевой мастер-уровень: базовый MASTER_OUTPUT_LEVEL, на дельта-плато —
-   * треугольная огибающая от уровня к 2× в середине интервала и обратно.
+   * Целевой мастер-уровень: полусинусоида по всей сессии — 0 в начале,
+   * MAX_MASTER_OUTPUT_LEVEL в середине (20-й отрезок) и 0 в конце (40-й).
    */
   private masterLevelAt(elapsed: number): number {
-    const snapshot = this.runtime.getSessionSnapshot(elapsed);
-    if (snapshot.interval.id !== "deltaPlateau") {
-      return MASTER_OUTPUT_LEVEL;
-    }
-
-    const swell = 1 - Math.abs(snapshot.intervalProgress * 2 - 1);
-    return MASTER_OUTPUT_LEVEL * (1 + swell);
+    const phase = this.runtime.sessionPhaseElapsed(elapsed);
+    const progress = this.runtime.durationSeconds > 0 ? phase / this.runtime.durationSeconds : 0;
+    return MAX_MASTER_OUTPUT_LEVEL * Math.sin(Math.PI * progress);
   }
 
   private updateMasterLevel(elapsed: number): void {
     if (!this.context || !this.masterGain) return;
 
     const now = this.context.currentTime;
-    this.masterGain.gain.setTargetAtTime(this.masterLevelAt(elapsed), now, MASTER_SWELL_SMOOTHING);
+    this.masterGain.gain.setTargetAtTime(this.masterLevelAt(elapsed), now, FADE_SECONDS);
   }
 
   private getElapsedSeconds(): number {

@@ -43,15 +43,25 @@ export function sessionStartPrompt(runtime: SessionRuntime): string {
 
 export function intervalEnterPrompt(interval: IntervalDefinition, rhythm: number): string {
   return (
-    `${formatTimestamp()} клиент переходит в интервал «${interval.label}», ` +
+    `${formatTimestamp()} клиент перешёл в интервал «${interval.label}», ` +
     `ритм ${formatRhythm(rhythm)} Гц`
   );
 }
 
+function isDeltaInterval(interval: IntervalDefinition): boolean {
+  return ["deltaDescent", "deltaPlateau", "deltaAscent"].includes(interval.id);
+}
+
 export function intervalContinuePrompt(interval: IntervalDefinition, rhythm: number): string {
-  return (
+  const base =
     `${formatTimestamp()} клиент продолжает находиться на интервале «${interval.label}», ` +
-    `текущий ритм ${formatRhythm(rhythm)} Гц`
+    `текущий ритм ${formatRhythm(rhythm)} Гц`;
+
+  if (!isDeltaInterval(interval)) return base;
+
+  return (
+    `${base}. Это продолжение единой сюжетной нити дельта-фазы — ` +
+    `сдвинь её на шаг вперёд.`
   );
 }
 

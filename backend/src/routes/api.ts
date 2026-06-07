@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { synthesize } from "../services/yandexTts.js";
-import { narrateDebug } from "../services/narratorDebug.js";
+import { narrate } from "../services/narrator/narrate.js";
+import {
+  createSession,
+  deleteSession,
+  hasSession,
+} from "../services/narrator/sessionStore.js";
 
 export const apiRouter = Router();
 
@@ -10,6 +15,7 @@ interface SynthesizeBody {
 }
 
 interface NarratorBody {
+  sessionId?: string;
   prompt?: string;
   speed?: number;
 }
@@ -37,8 +43,23 @@ apiRouter.post("/synthesize", async (req, res) => {
   }
 });
 
+apiRouter.post("/session", (_req, res) => {
+  const sessionId = createSession();
+  res.json({ sessionId });
+});
+
+apiRouter.delete("/session/:id", (req, res) => {
+  deleteSession(req.params.id);
+  res.status(204).end();
+});
+
 apiRouter.post("/narrator", async (req, res) => {
-  const { prompt, speed = 0.75 } = req.body as NarratorBody;
+  const { sessionId, prompt, speed = 0.75 } = req.body as NarratorBody;
+
+  if (!sessionId || typeof sessionId !== "string") {
+    res.status(400).json({ error: "sessionId is required" });
+    return;
+  }
 
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
     res.status(400).json({ error: "prompt is required" });
@@ -50,8 +71,13 @@ apiRouter.post("/narrator", async (req, res) => {
     return;
   }
 
+  if (!hasSession(sessionId)) {
+    res.status(404).json({ error: "session not found" });
+    return;
+  }
+
   try {
-    const result = await narrateDebug({ prompt, speed });
+    const result = await narrate({ sessionId, prompt, speed });
     res.setHeader("Content-Type", result.contentType);
     res.send(result.buffer);
   } catch (error) {
