@@ -38,6 +38,7 @@ apiRouter.post("/synthesize", async (req, res) => {
     res.setHeader("Content-Type", result.contentType);
     res.send(result.buffer);
   } catch (error) {
+    console.error("[/synthesize] ошибка:", error);
     const message = error instanceof Error ? error.message : "TTS synthesis failed";
     res.status(502).json({ error: message });
   }
@@ -81,6 +82,7 @@ apiRouter.post("/narrator", async (req, res) => {
     res.setHeader("Content-Type", result.contentType);
     res.send(result.buffer);
   } catch (error) {
+    console.error("[/narrator] ошибка:", error);
     const message = error instanceof Error ? error.message : "Narrator synthesis failed";
     res.status(502).json({ error: message });
   }

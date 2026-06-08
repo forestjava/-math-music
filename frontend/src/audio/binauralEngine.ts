@@ -11,8 +11,6 @@ import { randomPhaseWave } from "./waveform";
 
 const FADE_SECONDS = 0.2;
 const FADE_DELAY_MS = FADE_SECONDS * 1000 + 100;
-/** Пиковый мастер-уровень в середине сессии (20-й из 40 отрезков). */
-const MAX_MASTER_OUTPUT_LEVEL = 0.15;
 
 export type PlaybackState = "stopped" | "playing" | "paused";
 
@@ -304,23 +302,6 @@ export class BinauralSessionEngine {
     this.masterGain.gain.linearRampToValueAtTime(target, now + FADE_SECONDS);
   }
 
-  /**
-   * Целевой мастер-уровень: полусинусоида по всей сессии — 0 в начале,
-   * MAX_MASTER_OUTPUT_LEVEL в середине (20-й отрезок) и 0 в конце (40-й).
-   */
-  private masterLevelAt(elapsed: number): number {
-    const phase = this.runtime.sessionPhaseElapsed(elapsed);
-    const progress = this.runtime.durationSeconds > 0 ? phase / this.runtime.durationSeconds : 0;
-    return MAX_MASTER_OUTPUT_LEVEL * Math.sin(Math.PI * progress);
-  }
-
-  private updateMasterLevel(elapsed: number): void {
-    if (!this.context || !this.masterGain) return;
-
-    const now = this.context.currentTime;
-    this.masterGain.gain.setTargetAtTime(this.masterLevelAt(elapsed), now, FADE_SECONDS);
-  }
-
   private getElapsedSeconds(): number {
     if (this.playbackState === "playing" && this.context) {
       return Math.max(0, this.context.currentTime - this.sessionStartAudio);
@@ -348,11 +329,14 @@ export class BinauralSessionEngine {
   }
 
   private startScheduler(): void {
-    if (!this.context || !this.leftChannel || !this.rightChannel || !this.centerChannel) return;
+    if (!this.context || !this.masterGain || !this.leftChannel || !this.rightChannel || !this.centerChannel) {
+      return;
+    }
 
     this.scheduler.start(
       {
         context: this.context,
+        master: this.masterGain,
         left: this.leftChannel,
         right: this.rightChannel,
         center: this.centerChannel,
@@ -392,19 +376,13 @@ export class BinauralSessionEngine {
     this.emitValues();
   }
 
+  /** rAF-цикл отвечает только за отрисовку UI; аудио-параметры планируются по тикам. */
   private startUiLoop(): void {
     this.stopUiLoop();
 
     const loop = () => {
       if (this.playbackState !== "playing") return;
 
-      const elapsed = this.getElapsedSeconds();
-      if (this.runtime.isSessionComplete(elapsed)) {
-        this.handleSessionComplete();
-        return;
-      }
-
-      this.updateMasterLevel(elapsed);
       this.emitValues();
       this.uiRafId = requestAnimationFrame(loop);
     };

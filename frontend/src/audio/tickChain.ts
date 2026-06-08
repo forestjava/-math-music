@@ -1,5 +1,5 @@
 import { alignToTickStart, nextTickAfter } from "../session/tickModel";
-import { sampleCenterChannelAt, sampleChannelAt } from "./voices/compute";
+import { computeMasterOutput, sampleCenterChannelAt, sampleChannelAt } from "./voices/compute";
 import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
 import type { ChannelSide } from "./voices/types";
 
@@ -12,6 +12,7 @@ export interface ScheduledChannel {
 
 export interface TickChainTarget {
   context: AudioContext;
+  master: GainNode;
   left: ScheduledChannel;
   right: ScheduledChannel;
   center: ScheduledChannel;
@@ -47,6 +48,7 @@ export class TickChainScheduler {
 
   cancelScheduledParams(target: TickChainTarget): void {
     const now = target.context.currentTime;
+    target.master.gain.cancelScheduledValues(now);
     for (const channel of [target.left, target.right, target.center]) {
       for (let i = 0; i < CHOIR_MEMBER_COUNT; i++) {
         channel.oscillators[i].frequency.cancelScheduledValues(now);
@@ -72,6 +74,7 @@ export class TickChainScheduler {
     this.scheduleChannelRamp(target, "left", tick.startElapsed, tick.endElapsed, audioStart, audioEnd, now);
     this.scheduleChannelRamp(target, "right", tick.startElapsed, tick.endElapsed, audioStart, audioEnd, now);
     this.scheduleCenterRamp(target, tick.startElapsed, tick.endElapsed, audioStart, audioEnd, now);
+    this.scheduleMasterRamp(target, tick.endElapsed, audioStart, audioEnd, now);
 
     this.needsSetValue = false;
     this.cursorElapsed = tick.endElapsed;
@@ -104,6 +107,22 @@ export class TickChainScheduler {
       channel.oscillators[i].frequency.linearRampToValueAtTime(endSamples[i].frequency, audioEnd);
       channel.voiceGains[i].gain.linearRampToValueAtTime(endSamples[i].gain, audioEnd);
     }
+  }
+
+  private scheduleMasterRamp(
+    target: TickChainTarget,
+    tickEndElapsed: number,
+    audioStart: number,
+    audioEnd: number,
+    now: number,
+  ): void {
+    const gain = target.master.gain;
+
+    if (this.needsSetValue && audioStart >= now - 1e-6) {
+      gain.setValueAtTime(gain.value, audioStart);
+    }
+
+    gain.linearRampToValueAtTime(computeMasterOutput(tickEndElapsed), audioEnd);
   }
 
   private scheduleCenterRamp(

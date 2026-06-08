@@ -1,6 +1,6 @@
 import { synthesize, type SynthesizeResult } from "../yandexTts.js";
 import { generateNarration } from "./perplexityClient.js";
-import { appendMessage, getHistory } from "./sessionStore.js";
+import { appendMessage, getHistory, type ChatMessage } from "./sessionStore.js";
 import { loadSystemPrompt } from "./systemPrompt.js";
 
 export interface NarrateParams {
@@ -19,13 +19,15 @@ export async function narrate(params: NarrateParams): Promise<SynthesizeResult> 
     throw new Error(`Сессия ${params.sessionId} не найдена`);
   }
 
-  appendMessage(params.sessionId, { role: "user", content: params.prompt });
+  const userMessage: ChatMessage = { role: "user", content: params.prompt };
 
   const text = await generateNarration([
     { role: "system", content: loadSystemPrompt() },
     ...history,
+    userMessage,
   ]);
 
+  appendMessage(params.sessionId, userMessage);
   appendMessage(params.sessionId, { role: "assistant", content: text });
 
   return synthesize({ text, speed: params.speed });

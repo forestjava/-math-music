@@ -113,8 +113,8 @@ export class NarratorLoop {
       const interval = snapshot.interval;
       const prompt =
         interval.id === this.lastSpokenIntervalId
-          ? intervalContinuePrompt(interval, snapshot.rhythm)
-          : intervalEnterPrompt(interval, snapshot.rhythm);
+          ? intervalContinuePrompt(interval)
+          : intervalEnterPrompt(interval);
 
       const spoken = await this.speakSafely(prompt, interval.narratorSpeed);
       if (!this.isCurrent(generation)) return;
