@@ -1,4 +1,9 @@
-import { totalSegments, type IntervalDefinition } from "./intervals";
+import {
+  sessionPhaseForInterval,
+  totalSegments,
+  type IntervalDefinition,
+  type SessionAct,
+} from "./intervals";
 import { carrierCenterHz } from "./carrierPlan";
 import { lerp } from "./math";
 import { DEFAULT_SESSION_SETTINGS, getSessionMode, type SessionSettings } from "./settings";
@@ -15,6 +20,12 @@ export interface PhaseDurations {
   descent: number;
   plateau: number;
   ascent: number;
+}
+
+export interface ActDurations {
+  setup: number;
+  confrontation: number;
+  resolution: number;
 }
 
 export interface SessionSnapshot {
@@ -72,10 +83,10 @@ export class SessionRuntime {
 
     for (let i = 0; i < this.intervals.length; i++) {
       const duration = this.intervalDurationAt(i);
-      const id = this.intervals[i].id;
-      if (id === "deltaPlateau") {
+      const phase = sessionPhaseForInterval(this.intervals[i].id);
+      if (phase === "plateau") {
         plateau += duration;
-      } else if (id.endsWith("Ascent")) {
+      } else if (phase === "ascent") {
         ascent += duration;
       } else {
         descent += duration;
@@ -83,6 +94,25 @@ export class SessionRuntime {
     }
 
     return { descent, plateau, ascent };
+  }
+
+  actDurations(): ActDurations {
+    const acts: ActDurations = { setup: 0, confrontation: 0, resolution: 0 };
+
+    for (let i = 0; i < this.intervals.length; i++) {
+      acts[this.intervals[i].act] += this.intervalDurationAt(i);
+    }
+
+    return acts;
+  }
+
+  actStartElapsed(act: SessionAct): number {
+    for (let i = 0; i < this.intervals.length; i++) {
+      if (this.intervals[i].act === act) {
+        return this.intervalStartElapsed(i);
+      }
+    }
+    return 0;
   }
 
   sessionPhaseElapsed(elapsedSeconds: number): number {

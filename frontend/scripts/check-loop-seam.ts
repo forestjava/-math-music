@@ -5,6 +5,7 @@ import { voiceSampleEqual } from "./lib/choirMatch";
 import { setupDefaultRuntime } from "./lib/setupRuntime";
 
 const runtime = setupDefaultRuntime();
+const intervals = runtime.intervals;
 
 const start = computeChoirAt(0);
 const finish = computeChoirAtIntervalEdge(8, "end");
@@ -26,5 +27,9 @@ for (const m of CHOIR_MEMBERS) {
   }
 }
 
-console.log(ok ? "Loop seam (финиш β↑ → старт β↓): OK" : "Loop seam: FAIL");
+console.log(
+  ok
+    ? `Loop seam (финиш «${intervals[8].label}» → старт «${intervals[0].label}»): OK`
+    : "Loop seam: FAIL",
+);
 process.exit(ok ? 0 : 1);

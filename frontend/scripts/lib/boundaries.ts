@@ -22,59 +22,50 @@ export interface BoundaryContinuityReport {
   failures: { boundary: string; memberIndex: number; before: string; after: string }[];
 }
 
-/** Стыки, на которых end предыдущего интервала должен совпадать со start следующего. */
-export const BOUNDARY_TRANSITIONS: BoundaryTransition[] = [
-  { id: "beta-to-alpha", label: "после β↓ = начало α↓", fromIntervalIndex: 0, toIntervalIndex: 1 },
-  { id: "alpha-to-theta", label: "после α↓ = начало θ↓", fromIntervalIndex: 1, toIntervalIndex: 2 },
-  { id: "theta-to-delta-descent", label: "после θ↓ = начало δ↓", fromIntervalIndex: 2, toIntervalIndex: 3 },
-  {
-    id: "delta-descent-to-plateau",
-    label: "после δ↓ = начало δ плато",
-    fromIntervalIndex: 3,
-    toIntervalIndex: 4,
-  },
-  {
-    id: "plateau-to-delta-ascent",
-    label: "после δ плато = начало δ↑",
-    fromIntervalIndex: 4,
-    toIntervalIndex: 5,
-  },
-  {
-    id: "delta-ascent-to-theta-ascent",
-    label: "после δ↑ = начало θ↑",
-    fromIntervalIndex: 5,
-    toIntervalIndex: 6,
-  },
-  {
-    id: "theta-ascent-to-alpha-ascent",
-    label: "после θ↑ = начало α↑",
-    fromIntervalIndex: 6,
-    toIntervalIndex: 7,
-  },
-  {
-    id: "alpha-ascent-to-beta-ascent",
-    label: "после α↑ = начало β↑",
-    fromIntervalIndex: 7,
-    toIntervalIndex: 8,
-  },
+const BOUNDARY_INTERVAL_PAIRS: readonly (readonly [number, number])[] = [
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 4],
+  [4, 5],
+  [5, 6],
+  [6, 7],
+  [7, 8],
 ];
+
+/** Стыки, на которых end предыдущего интервала должен совпадать со start следующего. */
+export function getBoundaryTransitions(): BoundaryTransition[] {
+  const intervals = getActiveSessionRuntime().intervals;
+
+  return BOUNDARY_INTERVAL_PAIRS.map(([fromIntervalIndex, toIntervalIndex]) => {
+    const from = intervals[fromIntervalIndex];
+    const to = intervals[toIntervalIndex];
+    return {
+      id: `${from.id}-to-${to.id}`,
+      label: `после «${from.label}» = начало «${to.label}»`,
+      fromIntervalIndex,
+      toIntervalIndex,
+    };
+  });
+}
 
 export function getBoundaryCheckpoints(): BoundaryCheckpoint[] {
   const runtime = getActiveSessionRuntime();
+  const intervals = runtime.intervals;
+  const startLabel = intervals[0].label;
+  const finishLabel = intervals[intervals.length - 1].label;
+
   return [
-    { id: "session-start", label: "старт = начало β↓ *", elapsed: 0, isEndpoint: true },
-    { id: "alpha-descent-start", label: "начало α↓", elapsed: runtime.intervalEndElapsed(0) },
-    { id: "theta-descent-start", label: "начало θ↓", elapsed: runtime.intervalEndElapsed(1) },
-    { id: "delta-descent-start", label: "начало δ↓", elapsed: runtime.intervalEndElapsed(2) },
-    { id: "delta-plateau-start", label: "начало δ плато", elapsed: runtime.intervalEndElapsed(3) },
-    { id: "delta-ascent-start", label: "начало δ↑", elapsed: runtime.intervalEndElapsed(4) },
-    { id: "theta-ascent-start", label: "начало θ↑", elapsed: runtime.intervalEndElapsed(5) },
-    { id: "alpha-ascent-start", label: "начало α↑", elapsed: runtime.intervalEndElapsed(6) },
-    { id: "beta-ascent-start", label: "начало β↑", elapsed: runtime.intervalEndElapsed(7) },
+    { id: "session-start", label: `старт = начало «${startLabel}» *`, elapsed: 0, isEndpoint: true },
+    ...intervals.slice(1).map((interval, index) => ({
+      id: `${interval.id}-start`,
+      label: `начало «${interval.label}»`,
+      elapsed: runtime.intervalEndElapsed(index),
+    })),
     {
       id: "session-finish",
-      label: "финиш = окончание β↑ *",
-      elapsed: runtime.intervalEndElapsed(8),
+      label: `финиш = окончание «${finishLabel}» *`,
+      elapsed: runtime.intervalEndElapsed(intervals.length - 1),
       isEndpoint: true,
     },
   ];
@@ -90,7 +81,7 @@ function channelEqual(
 export function verifyBoundaryContinuity(): BoundaryContinuityReport {
   const failures: BoundaryContinuityReport["failures"] = [];
 
-  for (const transition of BOUNDARY_TRANSITIONS) {
+  for (const transition of getBoundaryTransitions()) {
     const before = computeChoirAtIntervalEdge(transition.fromIntervalIndex, "end");
     const after = computeChoirAtIntervalEdge(transition.toIntervalIndex, "start");
 
@@ -124,8 +115,9 @@ export function transitionFailed(
 }
 
 export function formatBoundaryReport(report: BoundaryContinuityReport): string {
+  const transitions = getBoundaryTransitions();
   if (report.ok) {
-    return `Стыки интервалов (${BOUNDARY_TRANSITIONS.length}): все параметры хора непрерывны.`;
+    return `Стыки интервалов (${transitions.length}): все параметры хора непрерывны.`;
   }
 
   return [

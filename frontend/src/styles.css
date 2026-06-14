@@ -211,27 +211,27 @@ body {
   border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.player__interval--betaDescent,
-.player__interval--betaAscent {
+.player__interval--world,
+.player__interval--return {
   background: #38bdf8;
 }
 
-.player__interval--alphaDescent,
-.player__interval--alphaAscent {
+.player__interval--call,
+.player__interval--resurrection {
   background: #818cf8;
 }
 
-.player__interval--thetaDescent,
-.player__interval--thetaAscent {
+.player__interval--threshold,
+.player__interval--homing {
   background: #a78bfa;
 }
 
-.player__interval--deltaDescent,
-.player__interval--deltaAscent {
+.player__interval--trials,
+.player__interval--reward {
   background: #2dd4bf;
 }
 
-.player__interval--deltaPlateau {
+.player__interval--ordeal {
   background: #34d399;
 }
 

@@ -19,7 +19,7 @@ export async function generateNarration(messages: ChatMessage[]): Promise<string
     temperature: 1.3,
     top_p: 0.95,
     presence_penalty: 0.8,
-    max_tokens: 150,           // максимальное количество токенов в ответе
+    max_tokens: 500,           // максимальное количество токенов в ответе
   });
 
   const text = completion.choices[0]?.message?.content?.trim();

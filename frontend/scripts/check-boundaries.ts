@@ -2,9 +2,9 @@ import { computeChoirAtIntervalEdge } from "../src/audio/voices/compute";
 import { CHOIR_MEMBERS } from "../src/audio/voices/choirMembers";
 import { CHOIR_MEMBER_COUNT, HARMONIC_LABELS } from "../src/audio/voices/harmonic";
 import {
-  BOUNDARY_TRANSITIONS,
   formatBoundaryReport,
   getBoundaryCheckpoints,
+  getBoundaryTransitions,
   transitionFailed,
   verifyBoundaryContinuity,
 } from "./lib/boundaries";
@@ -20,8 +20,9 @@ for (const c of getBoundaryCheckpoints()) {
 
 console.log("\n=== Результат проверки стыков ===\n");
 const report = verifyBoundaryContinuity();
+const transitions = getBoundaryTransitions();
 
-for (const t of BOUNDARY_TRANSITIONS) {
+for (const t of transitions) {
   const ok = !transitionFailed(report, t);
   console.log(`  ${ok ? "OK" : "FAIL"}  ${t.label}`);
 }
@@ -38,7 +39,7 @@ if (!report.ok) {
 console.log("\n=== Carrier на каждом стыке (center freq / gain) ===\n");
 const carrierIndex = CHOIR_MEMBERS.find((m) => m.slot === 0)!.index;
 
-for (const t of BOUNDARY_TRANSITIONS) {
+for (const t of transitions) {
   const end = computeChoirAtIntervalEdge(t.fromIntervalIndex, "end")[carrierIndex].center;
   const start = computeChoirAtIntervalEdge(t.toIntervalIndex, "start")[carrierIndex].center;
   console.log(
@@ -69,7 +70,7 @@ console.log(
     }),
     "",
     "Проверяемые стыки:",
-    ...BOUNDARY_TRANSITIONS.map((t) => `  • ${t.label}`),
+    ...transitions.map((t) => `  • ${t.label}`),
     "",
     formatBoundaryReport(report),
   ].join("\n"),
