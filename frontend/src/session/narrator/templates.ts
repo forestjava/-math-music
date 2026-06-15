@@ -70,17 +70,17 @@ export function sessionStartPrompt(runtime: SessionRuntime): string {
     `В блоке озвучания {...} подготовь клиента к началу сессии аудиальных эффектов, ` +
     `лаконично попроси комфортно разместиться во времени и пространстве.\n\n` +
     `Клиент инициировал сессию длительностью ${settings.durationMinutes} минут. ` +
-    `Распланируй сюжетную линию и структуру нарратива ` +
-    `как three-act structure (трёхактная структура) по Воглеру ` +
-    `или stages of the journey по Кэмпбеллу. ` +
-    `Выбери один конкретный жанровый сеттинг, один архетип героя и одну деталь мира — предмет, место, существо или артефакт.` +
-    `Одним-двумя предложениями сформулируй, чего герой хочет и как он должен измениться к финалу ` +
-    `(inner goal + outer goal). Это станет осью всей истории, к которой потом привяжутся акты, поворотные точки и стадии.\n` +
+    `В заметках распланируй сюжетную линию и структуру нарратива ` +
+    `как three-act structure (трёхактная структура, декомпозируемая на 12 стадий по Воглеру ` +
+    `или на 17 stages of the journey по Кэмпбеллу). ` +
+    `Кратко наметь сеттинг, способ реализации структуры нарратива в нём, 
+    формы проявления конкретных деталей мира, персонажей, 
+    событий...\n` +
     `Тайминг трёх актов:\n` +
     `[${formatElapsed(0)}] Act I «setup» (экспозиция, завязка; separation / departure)\n` +
     `[${formatElapsed(actIIStart)}] Act II «confrontation» (rising action, столкновение; initiation)\n` +
     `[${formatElapsed(actIIIStart)}] Act III «resolution» (climax & denouement, развязка; return)\n` +
-    `Теперь ты не описываешь историю — ты её рассказываешь.`
+    `Теперь ты не описываешь структуру истории вообще — ты её воплощаешь в частности.`
   );
 }
 
@@ -93,7 +93,7 @@ export function intervalEnterPrompt(
   let prompt = "";
 
   if (isFirstIntervalInAct(runtime, intervalIndex)) {
-    prompt += `Тайминг стадий акта «${ACT_LABELS[interval.act]}»:\n${formatActIntervalSchedule(runtime, interval.act)}\n\n`;
+    prompt += `Тайминг трёх стадий акта «${ACT_LABELS[interval.act]}»:\n${formatActIntervalSchedule(runtime, interval.act)}\n\n`;
   }
 
   prompt +=
@@ -101,8 +101,9 @@ export function intervalEnterPrompt(
     `Смысл: ${interval.meaning}\n` +
     `По Воглеру: ${interval.voglerStages}\n` +
     `По Кэмпбеллу: ${interval.campbellStages}\n` +
-    `Найди в интернете конкретный пример реализации стадии «${interval.label}», используй его как основу, ` +
-    `реализуй стадию «${interval.label}» в текущем сеттинге, расскажи конкретную сцену буквально. `;
+    `Найди в интернете частный пример проявления стадии «${interval.label}», используй его как основу, ` +
+    `реализуй стадию «${interval.label}» в текущем сеттинге, буквально начни рассказывать конкретную сцену, ` +
+    `дай в первом озвучиваемом блоке данной стадии первые 2-4 небольшие фразы предстоящего поворота истории`;
 
   return prompt;
 }

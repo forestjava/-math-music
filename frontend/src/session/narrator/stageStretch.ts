@@ -33,8 +33,8 @@ const CONTINUE_PHRASE_COUNT = 4;
 const CONTINUE_PHRASES = [
   "сохраняя связность, найди новые детали, ещё один содержательный элемент и добавь следующий естественный сюжетный ход",
   "работай как писатель: развивай события, персонажей, описывай и меняй локации, предметы, действия",
-  "поищи новые примеры реализации, развивай сюжет дальше внутри стадии",
-  "сделай блоки озвучания на данной стадии ещё продолжительнее: найди больше информации для истории, сделай фразы ещё сложнее",
+  "поищи новые примеры воплощения, развивай сюжет дальше внутри стадии",
+  "сделай блоки озвучания на данной стадии ещё продолжительнее: найди ещё больше материала для этапа, сделай фразы ещё сложнее",
 ] as const;
 
 export function resolveIntervalSubStage(progressPercent: number): IntervalSubStage {
@@ -83,9 +83,9 @@ function buildDeepeningPreamble(
     `В текущей стадии прошло: ${formatElapsed(timing.elapsedInInterval)} (${timing.progressPercent}%), ` +
     `осталось: ${formatElapsed(timing.remainingInInterval)}.\n` +
     `${buildMicroActStructureBlock(interval, timing, formatElapsed)}\n` +
-    `найди в интернете пример сюжетного углубления стадии «${interval.label}», распланируй тайминг, используй ` +
+    `Найди в интернете пример сюжетного углубления стадии «${interval.label}», распланируй тайминг: используй новый материал, ` +
     `чтобы заполнить оставшиеся ${formatElapsed(timing.remainingInInterval)}.\n` +
-    `сделай фразы в блоке озвучания {...} длиннее, насыщеннее для данной стадии\n`
+    `Не повторяй уже сказанное, а новые фразы в блоке озвучания {...} сделай длиннее, насыщеннее, подробнее для данной стадии.\n`
   );
 }
 
@@ -98,7 +98,7 @@ function buildMicroActActionLine(
     return `Найди пример «${subStageLabel}», перескажи`;
   }
 
-  return `Не повторяй предыдущие фразы, ${CONTINUE_PHRASES[phraseIndex % CONTINUE_PHRASE_COUNT]}, расскажи конкретную сцену буквально`;
+  return `Не повторяй предыдущие фразы, ${CONTINUE_PHRASES[phraseIndex % CONTINUE_PHRASE_COUNT]}, буквально продолжай рассказывать историю`;
 }
 
 function buildMicroActHeader(
