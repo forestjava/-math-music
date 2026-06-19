@@ -7,7 +7,7 @@ import { memberGainAt } from "./gains";
 import type { ChannelSide, ChoirMemberSnapshot, VoiceSample, VoiceTickState } from "./types";
 
 /** Пиковый мастер-уровень в середине сессии (вершина полусинусоиды). */
-export const MAX_MASTER_OUTPUT_LEVEL = 0.15;
+export const MAX_MASTER_OUTPUT_LEVEL = 0.1;
 
 function channelFrequency(centerHz: number, rhythmHz: number, side: ChannelSide): number {
   const half = rhythmHz / 2;

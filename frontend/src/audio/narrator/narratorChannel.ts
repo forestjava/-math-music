@@ -1,4 +1,4 @@
-const NARRATOR_OUTPUT_LEVEL = 0.85;
+const NARRATOR_OUTPUT_LEVEL = 0.5;
 
 /** Канал речи нарратора: параллельный выход в destination рядом с masterGain. */
 export class NarratorChannel {

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-const SYSTEM_PROMPT_URL = new URL("./SYSTEM.txt", import.meta.url);
+const SYSTEM_PROMPT_URL = new URL("./SYSTEM.DAP.txt", import.meta.url);
 
 let cached: string | null = null;
 

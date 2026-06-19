@@ -16,9 +16,9 @@ export async function generateNarration(messages: ChatMessage[]): Promise<string
   const completion = await client.chat.completions.create({
     model: MODEL,
     messages,
-    temperature: 1.3,
-    top_p: 0.95,
-    presence_penalty: 0.8,
+    temperature: 1.8,
+    // top_p: 0.95,
+    presence_penalty: 0.9,
     max_tokens: 500,           // максимальное количество токенов в ответе
   });
 
