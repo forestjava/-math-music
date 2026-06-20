@@ -19,6 +19,8 @@ export class NarratorChannel {
   play(buffer: AudioBuffer): Promise<void> {
     this.stop();
 
+    console.log(`[narrator] аудио: ${buffer.duration.toFixed(2)} с`);
+
     return new Promise<void>((resolve) => {
       const source = new AudioBufferSourceNode(this.context, { buffer });
       source.connect(this.gain);

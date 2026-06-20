@@ -13,7 +13,6 @@ import {
   sessionEndPrompt,
   sessionStartPrompt,
 } from "./templates";
-import type { IntervalSubStage } from "./stageStretch";
 
 export interface NarratorLoopDeps {
   context: AudioContext;
@@ -41,7 +40,6 @@ export class NarratorLoop {
   private sessionId: string | null = null;
   private lastSpokenIntervalId: Interval | null = null;
   private continuePhraseIndexByInterval = new Map<Interval, number>();
-  private lastSubStageByInterval = new Map<Interval, IntervalSubStage>();
   private sleepResolvers = new Set<() => void>();
   private mainLoopPromise: Promise<void> = Promise.resolve();
 
@@ -54,7 +52,6 @@ export class NarratorLoop {
     this.running = true;
     this.lastSpokenIntervalId = null;
     this.continuePhraseIndexByInterval.clear();
-    this.lastSubStageByInterval.clear();
 
     await this.openSession();
     if (!this.isCurrent(generation)) return;
@@ -106,7 +103,6 @@ export class NarratorLoop {
     this.cancel();
     this.lastSpokenIntervalId = null;
     this.continuePhraseIndexByInterval.clear();
-    this.lastSubStageByInterval.clear();
     void this.closeSession();
   }
 
@@ -120,35 +116,19 @@ export class NarratorLoop {
       const interval = snapshot.interval;
       const isContinue = interval.id === this.lastSpokenIntervalId;
       const phraseIndex = this.continuePhraseIndexByInterval.get(interval.id) ?? 0;
-      const previousSubStage = this.lastSubStageByInterval.get(interval.id) ?? null;
-      const isFirstContinue = isContinue && phraseIndex === 0;
 
-      const continueResult = isContinue
-        ? intervalContinuePrompt(
-            runtime,
-            snapshot.elapsed,
-            interval,
-            snapshot.intervalIndex,
-            phraseIndex,
-            previousSubStage,
-            isFirstContinue,
-          )
-        : null;
-      const prompt = continueResult?.prompt
-        ?? intervalEnterPrompt(runtime, snapshot.elapsed, interval, snapshot.intervalIndex);
+      const prompt = isContinue
+        ? intervalContinuePrompt(snapshot.elapsed, interval, phraseIndex)
+        : intervalEnterPrompt(runtime, snapshot.elapsed, interval, snapshot.intervalIndex);
 
       const spoken = await this.speakSafely(prompt, interval.narratorSpeed);
       if (!this.isCurrent(generation)) return;
       if (spoken) {
         this.lastSpokenIntervalId = interval.id;
-        if (continueResult) {
-          this.lastSubStageByInterval.set(interval.id, continueResult.subStage);
-          if (continueResult.verb === "continues") {
-            this.continuePhraseIndexByInterval.set(interval.id, phraseIndex + 1);
-          }
+        if (isContinue) {
+          this.continuePhraseIndexByInterval.set(interval.id, phraseIndex + 1);
         } else {
           this.continuePhraseIndexByInterval.set(interval.id, 0);
-          this.lastSubStageByInterval.delete(interval.id);
         }
       }
 

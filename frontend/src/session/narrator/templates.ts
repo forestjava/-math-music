@@ -1,10 +1,6 @@
 import type { IntervalDefinition, SessionAct } from "../intervals";
 import type { SessionRuntime } from "../runtime";
-import {
-  buildStageStretchContinuePrompt,
-  type IntervalSubStage,
-  type StageStretchContinueResult,
-} from "./stageStretch";
+import { buildStageStretchContinuePrompt } from "./stageStretch";
 
 const ACT_LABELS: Record<SessionAct, string> = {
   setup: "Act I setup",
@@ -32,33 +28,10 @@ function formatActIntervalSchedule(runtime: SessionRuntime, act: SessionAct): st
     const interval = runtime.intervals[i];
     if (interval.act !== act) continue;
     lines.push(
-      `[${formatElapsed(runtime.intervalStartElapsed(i))}] «${interval.id}» ${interval.meaning}`,
+      `  ${formatElapsed(runtime.intervalStartElapsed(i))} «${interval.id}» ${interval.meaning}`,
     );
   }
   return lines.join("\n");
-}
-
-function intervalTiming(
-  runtime: SessionRuntime,
-  elapsed: number,
-  intervalIndex: number,
-) {
-  const intervalStart = runtime.intervalStartElapsed(intervalIndex);
-  const intervalDuration = runtime.intervalDurationAt(intervalIndex);
-  const elapsedInInterval = Math.max(0, elapsed - intervalStart);
-  const remainingInInterval = Math.max(0, intervalDuration - elapsedInInterval);
-  const progressPercent =
-    intervalDuration > 0
-      ? Math.min(100, Math.round((elapsedInInterval / intervalDuration) * 100))
-      : 100;
-
-  return {
-    intervalStartElapsed: intervalStart,
-    intervalDuration,
-    elapsedInInterval,
-    remainingInInterval,
-    progressPercent,
-  };
 }
 
 export function sessionStartPrompt(runtime: SessionRuntime): string {
@@ -81,9 +54,9 @@ export function sessionStartPrompt(runtime: SessionRuntime): string {
     формы проявления конкретных деталей мира, персонажей, 
     развития событий, действий...\n` +
     `Тайминг трёх актов:\n` +
-    `[${formatElapsed(0)}] Act I «setup» (экспозиция, завязка; separation / departure)\n` +
-    `[${formatElapsed(actIIStart)}] Act II «confrontation» (rising action, столкновение; initiation)\n` +
-    `[${formatElapsed(actIIIStart)}] Act III «resolution» (climax & denouement, развязка; return)\n` +
+    `  ${formatElapsed(0)} Act I «setup» (экспозиция, завязка; separation / departure)\n` +
+    `  ${formatElapsed(actIIStart)} Act II «confrontation» (rising action, столкновение; initiation)\n` +
+    `  ${formatElapsed(actIIIStart)} Act III «resolution» (climax & denouement, развязка; return)\n` +
     `Теперь ты не описываешь структуру истории вообще — ты её воплощаешь в частности.`
   );
 }
@@ -97,7 +70,8 @@ export function intervalEnterPrompt(
   let prompt = "";
 
   if (isFirstIntervalInAct(runtime, intervalIndex)) {
-    prompt += `Тайминг трёх стадий акта «${ACT_LABELS[interval.act]}»:\n${formatActIntervalSchedule(runtime, interval.act)}\n\n`;
+    prompt += `${ACT_LABELS[interval.act]}.\n`;
+    prompt += `Тайминг трёх следующих стадий внутри акта «${ACT_LABELS[interval.act]}»:\n${formatActIntervalSchedule(runtime, interval.act)}\n\n`;
   }
 
   prompt +=
@@ -106,30 +80,21 @@ export function intervalEnterPrompt(
     `По Воглеру: ${interval.voglerStages}\n` +
     `По Кэмпбеллу: ${interval.campbellStages}\n` +
     `Найди в интернете частный пример проявления стадии «${interval.label}», используй его как основу, ` +
-    `реализуй стадию «${interval.label}» в текущем сеттинге, начни рассказывать конкретную сцену, ` +
+    `воплоти структуру стадии в текущем сеттинге, начни рассказывать конкретную сцену, ` +
     `дай в первом озвучиваемом блоке данной стадии первые 2-4 небольшие фразы предстоящего поворота истории`;
 
   return prompt;
 }
 
 export function intervalContinuePrompt(
-  runtime: SessionRuntime,
   elapsed: number,
   interval: IntervalDefinition,
-  intervalIndex: number,
   phraseIndex: number,
-  previousSubStage: IntervalSubStage | null,
-  isFirstContinue: boolean,
-): StageStretchContinueResult {
-  return buildStageStretchContinuePrompt({
-    elapsed,
-    interval,
-    timing: intervalTiming(runtime, elapsed, intervalIndex),
-    phraseIndex,
-    previousSubStage,
-    isFirstContinue,
-    formatElapsed,
-  });
+): string {
+  return (
+    `[${formatElapsed(elapsed)}] клиент продолжает «${interval.id}».\n` +
+    buildStageStretchContinuePrompt(phraseIndex)
+  );
 }
 
 export function sessionEndPrompt(elapsed: number): string {

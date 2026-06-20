@@ -1,8 +1,7 @@
 import { synthesize, type SynthesizeResult } from "../yandexTts.js";
 import { extractSpeechBlock } from "./extractSpeechBlock.js";
 import { generateNarration } from "./perplexityClient.js";
-import { appendMessage, getHistory, type ChatMessage } from "./sessionStore.js";
-import { loadSystemPrompt } from "./systemPrompt.js";
+import { appendMessage, getMessages, type ChatMessage } from "./sessionStore.js";
 
 export interface NarrateParams {
   sessionId: string;
@@ -15,22 +14,18 @@ export interface NarrateParams {
  * генерирует текст через Sonar, сохраняет ответ и озвучивает его.
  */
 export async function narrate(params: NarrateParams): Promise<SynthesizeResult> {
-  const history = getHistory(params.sessionId);
-  if (!history) {
+  const messages = getMessages(params.sessionId);
+  if (!messages) {
     throw new Error(`Сессия ${params.sessionId} не найдена`);
   }
 
   const userMessage: ChatMessage = { role: "user", content: params.prompt };
+  appendMessage(params.sessionId, userMessage);
 
-  const text = await generateNarration([
-    { role: "system", content: loadSystemPrompt() },
-    ...history,
-    userMessage,
-  ]);
+  const text = await generateNarration(messages);
 
   logNarratorExchange(params.sessionId, params.prompt, text);
 
-  appendMessage(params.sessionId, userMessage);
   appendMessage(params.sessionId, { role: "assistant", content: text });
 
   const speechText = extractSpeechBlock(text);
