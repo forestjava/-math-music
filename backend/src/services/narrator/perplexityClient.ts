@@ -16,10 +16,10 @@ export async function generateNarration(messages: ChatMessage[]): Promise<string
   const completion = await client.chat.completions.create({
     model: MODEL,
     messages,
-    temperature: 1.8,
-    // top_p: 0.95,
-    presence_penalty: 0.9,
-    max_tokens: 1000,           // максимальное количество токенов в ответе
+    temperature: 1.2,
+    top_p: 0.6,
+    frequency_penalty: 2.0,
+    max_tokens: 1200,           // максимальное количество токенов в ответе
   });
 
   const text = completion.choices[0]?.message?.content?.trim();
