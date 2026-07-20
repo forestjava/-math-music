@@ -2,6 +2,7 @@ export interface NarratorReply {
   speech: string;
   openThread: string;
   closedThreads: string[];
+  characters: string[];
 }
 
 /** Снимает ограждение ``` / ```json, если модель обернула JSON в fenced code block. */
@@ -27,11 +28,15 @@ export function parseNarratorReply(text: string): NarratorReply {
     speech: string;
     openThread?: string;
     closedThreads?: string[];
+    characters?: string[];
   };
   return {
     speech: stripMarkdownMarkup(parsed.speech ?? ""),
     openThread: parsed.openThread ?? "",
     closedThreads: parsed.closedThreads ?? [],
+    characters: Array.isArray(parsed.characters)
+      ? parsed.characters.filter((c): c is string => typeof c === "string")
+      : [],
   };
 }
 

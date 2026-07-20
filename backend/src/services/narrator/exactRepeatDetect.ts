@@ -97,14 +97,18 @@ export function bannedFragmentsForCandidate(
   prior: PhraseRecord[],
   candidateSpeech: string,
   options?: Partial<ExactDetectOptions>,
+  /** Повторы, совпадающие с именами/описаниями characters, допустимы. */
+  allowedCharacters: string[] = [],
 ): string[] {
+  const cfg = { ...DEFAULT_OPTIONS, ...options };
   const history = [...prior, { id: CANDIDATE_PHRASE_ID, text: candidateSpeech }];
   const result = detectExactRepeatedFragments(history, options);
   const involvingCandidate: ExactDetectResult = {
     bannedFragments: result.bannedFragments.filter(
       (span) =>
-        span.sourcePhraseId === CANDIDATE_PHRASE_ID ||
-        span.targetPhraseId === CANDIDATE_PHRASE_ID,
+        (span.sourcePhraseId === CANDIDATE_PHRASE_ID ||
+          span.targetPhraseId === CANDIDATE_PHRASE_ID) &&
+        !isCharacterLabel(span.matchedText, allowedCharacters, cfg),
     ),
   };
   return buildExactGenerationGuards(involvingCandidate);
@@ -149,6 +153,21 @@ function normalizeText(text: string, cfg: ExactDetectOptions): string {
   }
 
   return out;
+}
+
+/** Повтор допустим, если фрагмент — это (или входит в / содержит) запись из characters. */
+function isCharacterLabel(
+  fragment: string,
+  characters: string[],
+  cfg: ExactDetectOptions,
+): boolean {
+  const f = normalizeText(fragment, cfg);
+  if (!f) return false;
+  return characters.some((c) => {
+    const n = normalizeText(c, cfg);
+    if (!n) return false;
+    return f === n || f.includes(n) || n.includes(f);
+  });
 }
 
 function dedupeAndRank(items: ExactRepeatSpan[]): ExactRepeatSpan[] {

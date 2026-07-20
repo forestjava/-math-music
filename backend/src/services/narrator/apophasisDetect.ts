@@ -44,7 +44,7 @@ export function buildApophasisRetryPrompt(hits: ApophasisHit[]): string {
     .join("; ");
   const preferY = [...new Set(hits.map((h) => h.y))].map((y) => `«${y}»`).join(", ");
   return (
-    `speech содержит апофатику: ${list}. ` +
-    `Убери отрицательный контраст: опиши просто напрямую через Y (${preferY}). `
+    `Возможно, speech содержит апофатику: ${list}. ` +
+    `Убери, если это только для отрицательного контраста, опиши просто напрямую через Y (${preferY}). `
   );
 }

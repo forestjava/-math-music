@@ -28,7 +28,7 @@ export interface NarrateParams {
 const announcedLogFiles = new Set<string>();
 
 /** Сколько раз подряд можно запросить перегенерацию reply из‑за нарушений. */
-const MAX_BAN_RETRIES = 4;
+const MAX_BAN_RETRIES = 16;
 
 /**
  * Оркестратор фразы рассказчика: добавляет запрос в историю сеанса,
@@ -54,7 +54,12 @@ export async function narrate(params: NarrateParams): Promise<SynthesizeResult> 
   // 2) Проверки; при нарушениях — retry до чистого ответа или лимита
   let banRetry = 0;
   while (true) {
-    const speechBanned = bannedFragmentsForCandidate(priorSpeeches, reply.speech);
+    const speechBanned = bannedFragmentsForCandidate(
+      priorSpeeches,
+      reply.speech,
+      undefined,
+      reply.characters,
+    );
     const threadBanned = bannedFragmentsForOpenThread(reply.closedThreads, reply.openThread);
     const apophasisHits = detectApophasis(reply.speech);
     const bannedLabelHits = detectBannedLabel(reply.speech);
