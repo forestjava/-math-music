@@ -1,5 +1,10 @@
 import { synthesize, type SynthesizeResult } from "../yandexTts.js";
-import { extractSpeechBlock } from "./extractSpeechBlock.js";
+import { extractSpeechBlock, stripNarratorNoise } from "./extractSpeechBlock.js";
+import {
+  bannedFragmentsForCandidate,
+  buildExactRetryPrompt,
+  collectSpeechHistory,
+} from "./exactRepeatDetect.js";
 import { generateNarration } from "./perplexityClient.js";
 import { appendMessage, getMessages, type ChatMessage } from "./sessionStore.js";
 
@@ -11,7 +16,7 @@ export interface NarrateParams {
 
 /**
  * Оркестратор фразы рассказчика: добавляет запрос в историю сеанса,
- * генерирует текст через Sonar, сохраняет ответ и озвучивает его.
+ * генерирует текст через Sonar, при exact-повторе speech делает один retry, озвучивает итог.
  */
 export async function narrate(params: NarrateParams): Promise<SynthesizeResult> {
   const messages = getMessages(params.sessionId);
@@ -22,16 +27,31 @@ export async function narrate(params: NarrateParams): Promise<SynthesizeResult> 
   const userMessage: ChatMessage = { role: "user", content: params.prompt };
   appendMessage(params.sessionId, userMessage);
 
-  const text = await generateNarration(messages);
+  const priorSpeeches = collectSpeechHistory(messages);
 
+  let text = stripNarratorNoise(await generateNarration(messages));
   logNarratorExchange(params.sessionId, params.prompt, text);
 
-  appendMessage(params.sessionId, { role: "assistant", content: text });
-
-  const speechText = extractSpeechBlock(text);
+  let speechText = extractSpeechBlock(text);
   if (!speechText) {
-    throw new Error("В ответе LLM нет блока озвучания {...}");
+    throw new Error("В ответе LLM нет поля speech");
   }
+
+  const banned = bannedFragmentsForCandidate(priorSpeeches, speechText);
+  if (banned.length > 0) {
+    const retryPrompt = buildExactRetryPrompt(banned);
+    appendMessage(params.sessionId, { role: "user", content: retryPrompt });
+
+    text = stripNarratorNoise(await generateNarration(messages));
+    logNarratorExchange(params.sessionId, retryPrompt, text);
+
+    speechText = extractSpeechBlock(text);
+    if (!speechText) {
+      throw new Error("В ответе LLM нет поля speech");
+    }
+  }
+
+  appendMessage(params.sessionId, { role: "assistant", content: text });
 
   return synthesize({ text: speechText, speed: params.speed });
 }
