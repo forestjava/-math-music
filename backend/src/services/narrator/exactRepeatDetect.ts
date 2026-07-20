@@ -26,8 +26,8 @@ export interface ExactDetectResult {
 }
 
 export const DEFAULT_OPTIONS: ExactDetectOptions = {
-  minExactChars: 20,
-  maxReturnedSpans: 10,
+  minExactChars: 32,
+  maxReturnedSpans: 4,
   normalizeWhitespace: true,
   ignoreCase: true,
 };
