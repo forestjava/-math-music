@@ -111,13 +111,29 @@ export function bannedFragmentsForCandidate(
 }
 
 export function buildExactRetryPrompt(bannedExactFragments: string[]): string {
-  const list =
-    bannedExactFragments.length > 0
-      ? bannedExactFragments.map((f) => `«${f}»`).join("; ")
-      : "точные фрагменты из прошлых speech";
+  const list = bannedExactFragments.map((f) => `«${f}»`).join("; ");
   return (
-    `speech содержит точные дословные фрагменты из прошлых ответов, что категорически запрещено: ${list}. ` +
-    `Запрещено повторять ранее озвученные реплики и их близкие парафразы. ` // согласно строке 8 системного промпта
+    `speech содержит точные дословные фрагменты из прошлых ответов: ${list}. ` +
+    `Запрещено повторять ранее озвученные реплики и их близкие парафразы. ` // согласно строке 14 системного промпта
+  );
+}
+
+/** Exact-пересечения openThread с элементами closedThreads (чёрный список). */
+export function bannedFragmentsForOpenThread(
+  closedThreads: string[],
+  openThread: string,
+  options?: Partial<ExactDetectOptions>,
+): string[] {
+  if (!openThread.trim() || closedThreads.length === 0) return [];
+  const prior = closedThreads.map((text, i) => ({ id: `closed-${i}`, text }));
+  return bannedFragmentsForCandidate(prior, openThread, options);
+}
+
+export function buildClosedThreadRetryPrompt(bannedExactFragments: string[]): string {
+  const list = bannedExactFragments.map((f) => `«${f}»`).join("; ");
+  return (
+    `openThread содержит точные дословные фрагменты из closedThreads (чёрный список): ${list}. ` +
+    `Новый openThread генерируй так, чтобы по смыслу он соприкасался, но был как можно дальше от closedThreads. ` // согласно строке 48 системного промпта
   );
 }
 

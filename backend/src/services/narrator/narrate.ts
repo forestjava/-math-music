@@ -1,7 +1,11 @@
+import { appendFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { synthesize, type SynthesizeResult } from "../yandexTts.js";
-import { extractSpeechBlock, stripNarratorNoise } from "./extractSpeechBlock.js";
+import { parseNarratorReply } from "./extractSpeechBlock.js";
 import {
   bannedFragmentsForCandidate,
+  bannedFragmentsForOpenThread,
+  buildClosedThreadRetryPrompt,
   buildExactRetryPrompt,
   collectSpeechHistory,
 } from "./exactRepeatDetect.js";
@@ -14,9 +18,11 @@ export interface NarrateParams {
   speed: number;
 }
 
+const announcedLogFiles = new Set<string>();
+
 /**
  * Оркестратор фразы рассказчика: добавляет запрос в историю сеанса,
- * генерирует текст через Sonar, при exact-повторе speech делает один retry, озвучивает итог.
+ * генерирует текст через Sonar, при exact-повторах делает retry, озвучивает итог.
  */
 export async function narrate(params: NarrateParams): Promise<SynthesizeResult> {
   const messages = getMessages(params.sessionId);
@@ -29,31 +35,39 @@ export async function narrate(params: NarrateParams): Promise<SynthesizeResult> 
 
   const priorSpeeches = collectSpeechHistory(messages);
 
-  let text = stripNarratorNoise(await generateNarration(messages));
+  // 1) Получить reply
+  let text = await generateNarration(messages);
   logNarratorExchange(params.sessionId, params.prompt, text);
 
-  let speechText = extractSpeechBlock(text);
-  if (!speechText) {
-    throw new Error("В ответе LLM нет поля speech");
-  }
+  let reply = parseNarratorReply(text);
 
-  const banned = bannedFragmentsForCandidate(priorSpeeches, speechText);
-  if (banned.length > 0) {
-    const retryPrompt = buildExactRetryPrompt(banned);
+  // 2) Exact-повтор speech относительно priorSpeeches
+  const speechBanned = bannedFragmentsForCandidate(priorSpeeches, reply.speech);
+  if (speechBanned.length > 0) {
+    const retryPrompt = buildExactRetryPrompt(speechBanned);
     appendMessage(params.sessionId, { role: "user", content: retryPrompt });
 
-    text = stripNarratorNoise(await generateNarration(messages));
+    text = await generateNarration(messages);
     logNarratorExchange(params.sessionId, retryPrompt, text);
 
-    speechText = extractSpeechBlock(text);
-    if (!speechText) {
-      throw new Error("В ответе LLM нет поля speech");
-    }
+    reply = parseNarratorReply(text);
+  }
+
+  // 3) Exact-пересечение openThread с closedThreads (чёрный список)
+  const threadBanned = bannedFragmentsForOpenThread(reply.closedThreads, reply.openThread);
+  if (threadBanned.length > 0) {
+    const retryPrompt = buildClosedThreadRetryPrompt(threadBanned);
+    appendMessage(params.sessionId, { role: "user", content: retryPrompt });
+
+    text = await generateNarration(messages);
+    logNarratorExchange(params.sessionId, retryPrompt, text);
+
+    reply = parseNarratorReply(text);
   }
 
   appendMessage(params.sessionId, { role: "assistant", content: text });
 
-  return synthesize({ text: speechText, speed: params.speed });
+  return synthesize({ text: reply.speech, speed: params.speed });
 }
 
 function isNarratorLogEnabled(): boolean {
@@ -61,25 +75,38 @@ function isNarratorLogEnabled(): boolean {
   return value === "1" || value === "true" || value === "yes";
 }
 
+function narratorLogPath(sessionId: string): string {
+  const dir = join(process.cwd(), "logs");
+  mkdirSync(dir, { recursive: true });
+  return join(dir, `narrator-${sessionId}.log`);
+}
+
 function logNarratorExchange(sessionId: string, prompt: string, response: string): void {
   if (!isNarratorLogEnabled()) return;
 
+  const logPath = narratorLogPath(sessionId);
   const border = "=".repeat(72);
   const rule = "-".repeat(72);
 
-  console.log(
-    [
-      "",
-      border,
-      `[narrator] сессия ${sessionId}`,
-      rule,
-      "USER:",
-      prompt,
-      rule,
-      "ASSISTANT:",
-      response,
-      border,
-      "",
-    ].join("\n"),
-  );
+  const block = [
+    "",
+    border,
+    `[narrator] сессия ${sessionId}`,
+    rule,
+    "USER:",
+    prompt,
+    rule,
+    "ASSISTANT:",
+    response,
+    border,
+    "",
+  ].join("\n");
+
+  // appendFileSync открывает/пишет/закрывает — flush на диск после каждой записи
+  appendFileSync(logPath, block, "utf8");
+
+  if (!announcedLogFiles.has(logPath)) {
+    announcedLogFiles.add(logPath);
+    console.log(`[narrator] лог сессии: ${logPath}`);
+  }
 }

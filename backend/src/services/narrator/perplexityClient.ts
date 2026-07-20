@@ -18,7 +18,6 @@ export async function generateNarration(messages: ChatMessage[]): Promise<string
     messages,
     temperature: 0.9,
     top_p: 0.9,
-    max_tokens: 1200,
   });
 
   const text = completion.choices[0]?.message?.content?.trim();

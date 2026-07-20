@@ -49,7 +49,7 @@ export function intervalEnterPrompt(
     `Смысл стадии: ${interval.meaning} \n` +
     `По Воглеру: ${interval.voglerStages} \n` +
     `По Кэмпбеллу: ${interval.campbellStages} \n` +
-    `Следуй системной инструкции: новый шаг — новый сюжетный поворот, полное обновление openThreads; ` +
+    `Следуй системной инструкции: новый шаг — новый сюжетный поворот, обновление openThread; ` +
     `воплоти новую сцену для стадии «${interval.label}»; ` +
     `в speech — первые 2–4 небольшие фразы поворота.`;
 
