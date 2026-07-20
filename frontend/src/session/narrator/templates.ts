@@ -1,6 +1,5 @@
 import type { IntervalDefinition, SessionAct } from "../intervals";
 import type { SessionRuntime } from "../runtime";
-import { buildAntiRepeatRules, buildStageStretchContinuePrompt } from "./stageStretch";
 
 const ACT_LABELS: Record<SessionAct, string> = {
   setup: "Act I setup",
@@ -50,8 +49,8 @@ export function intervalEnterPrompt(
     `Смысл стадии: ${interval.meaning} \n` +
     `По Воглеру: ${interval.voglerStages} \n` +
     `По Кэмпбеллу: ${interval.campbellStages} \n` +
-    `${buildAntiRepeatRules()} ` +
-    `Воплоти как новую сцену для стадии «${interval.label}»; ` +
+    `Следуй системной инструкции: новый шаг — новый сюжетный поворот, полное обновление openThreads; ` +
+    `воплоти новую сцену для стадии «${interval.label}»; ` +
     `в speech — первые 2–4 небольшие фразы поворота.`;
 
   return prompt;
@@ -63,14 +62,15 @@ export function intervalContinuePrompt(
 ): string {
   return (
     `[${formatElapsed(elapsed)}] (клиент продолжает стадию «${interval.id}»)\n` +
-    buildStageStretchContinuePrompt()
+    `Следуй системной инструкции: новый шаг — обновление StoryState.` + 
+    `Находи разнообразные приёмы удержания внимания слушателя, качественного сторителлинга и сценарного мастерства — и сразу воплощай найденное в новой сцене. ` +
+    `Запрещено повторять ранее озвученные реплики и их близкие парафразы. ` // согласно строке 14 системного промпта
   );
 }
 
 export function sessionEndPrompt(elapsed: number): string {
   return (
     `[${formatElapsed(elapsed)}] клиент завершил сессию.\n` +
-    `Перезапиши StoryState под закрытие: открытые нити перенеси в closedThreads. ` +
     `В speech — последний блок: кратко закрепи полученный опыт и мягко верни в настоящее.`
   );
 }

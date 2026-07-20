@@ -26,7 +26,7 @@ export interface ExactDetectResult {
 }
 
 export const DEFAULT_OPTIONS: ExactDetectOptions = {
-  minExactChars: 30,
+  minExactChars: 20,
   maxReturnedSpans: 10,
   normalizeWhitespace: true,
   ignoreCase: true,
@@ -117,11 +117,7 @@ export function buildExactRetryPrompt(bannedExactFragments: string[]): string {
       : "точные фрагменты из прошлых speech";
   return (
     `speech содержит точные дословные фрагменты из прошлых ответов, что категорически запрещено: ${list}. ` +
-    `Закрой первую openThreads событием в speech и перенеси её в closedThreads (бан на переоткрытие). ` +
-    `Не повторяй и не пересказывай closedThreads. ` +
-    `Полностью перезапиши StoryState под новую сцену (не дополняя прошлые блоки озвучания и не дополняя предыдущие списки); ` +
-    `action = сказуемое текущего кадра, буквально озвучиваемое в новом speech. ` +
-    `В speech — первые 2–4 небольшие фразы поворота, написанные с нуля. `
+    `Запрещено повторять ранее озвученные реплики и их близкие парафразы. ` // согласно строке 8 системного промпта
   );
 }
 
