@@ -27,10 +27,9 @@ export function sessionStartPrompt(runtime: SessionRuntime): string {
 
   return (
     `Клиент инициировал сессию длительностью ${settings.durationMinutes} минут. ` +
-    `В поле speech подготовь клиента к началу сессии аудиальных эффектов, ` +
-    `лаконично попроси комфортно разместиться телом и вниманием во времени и пространстве. ` +
-    `Придумай короткую вводную сцену, которая будет служить сеттингом, основой для всей сессии и игрового мира. ` +
-    `Перезапиши StoryState целиком под эту вводную сцену.`
+    `` + // TODO user preferences
+    `Придумай оригинальный сеттинг и основу игрового мира в StoryState, но в speech пока только подготовь клиента — ` +
+    `лаконично попроси комфортно разместиться телом и вниманием во времени и пространстве; пусть мир открывается постепенно и неожиданно по ходу сеанса.`
   );
 }
 
@@ -51,10 +50,9 @@ export function intervalEnterPrompt(
     `Смысл стадии: ${interval.meaning} \n` +
     `По Воглеру: ${interval.voglerStages} \n` +
     `По Кэмпбеллу: ${interval.campbellStages} \n` +
-    `${buildAntiRepeatRules()}` +
-    `Воплоти найденное как новую сцену для стадии «${interval.label}»; ` +
-    `в speech — первые 2–4 небольшие фразы поворота, написанные с нуля. ` +
-    `Перезапиши StoryState под новую сцену.`;
+    `${buildAntiRepeatRules()} ` +
+    `Воплоти как новую сцену для стадии «${interval.label}»; ` +
+    `в speech — первые 2–4 небольшие фразы поворота.`;
 
   return prompt;
 }
@@ -62,18 +60,17 @@ export function intervalEnterPrompt(
 export function intervalContinuePrompt(
   elapsed: number,
   interval: IntervalDefinition,
-  phraseIndex: number,
 ): string {
   return (
-    `[${formatElapsed(elapsed)}] клиент продолжает стадию «${interval.id}».\n` +
-    buildStageStretchContinuePrompt(phraseIndex)
+    `[${formatElapsed(elapsed)}] (клиент продолжает стадию «${interval.id}»)\n` +
+    buildStageStretchContinuePrompt()
   );
 }
 
 export function sessionEndPrompt(elapsed: number): string {
   return (
     `[${formatElapsed(elapsed)}] клиент завершил сессию.\n` +
-    `В speech — новый последний блок для клиента: закрепи полученный опыт и мягко верни его в настоящее. ` +
-    `Перезапиши StoryState под закрытие.`
+    `Перезапиши StoryState под закрытие: открытые нити перенеси в closedThreads. ` +
+    `В speech — последний блок: кратко закрепи полученный опыт и мягко верни в настоящее.`
   );
 }

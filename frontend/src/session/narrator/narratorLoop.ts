@@ -39,7 +39,6 @@ export class NarratorLoop {
   private generation = 0;
   private sessionId: string | null = null;
   private lastSpokenIntervalId: Interval | null = null;
-  private continuePhraseIndexByInterval = new Map<Interval, number>();
   private sleepResolvers = new Set<() => void>();
   private mainLoopPromise: Promise<void> = Promise.resolve();
 
@@ -51,7 +50,6 @@ export class NarratorLoop {
     const generation = ++this.generation;
     this.running = true;
     this.lastSpokenIntervalId = null;
-    this.continuePhraseIndexByInterval.clear();
 
     await this.openSession();
     if (!this.isCurrent(generation)) return;
@@ -102,7 +100,6 @@ export class NarratorLoop {
   stop(): void {
     this.cancel();
     this.lastSpokenIntervalId = null;
-    this.continuePhraseIndexByInterval.clear();
     void this.closeSession();
   }
 
@@ -115,21 +112,15 @@ export class NarratorLoop {
       const snapshot = runtime.getSessionSnapshot(elapsed);
       const interval = snapshot.interval;
       const isContinue = interval.id === this.lastSpokenIntervalId;
-      const phraseIndex = this.continuePhraseIndexByInterval.get(interval.id) ?? 0;
 
       const prompt = isContinue
-        ? intervalContinuePrompt(snapshot.elapsed, interval, phraseIndex)
+        ? intervalContinuePrompt(snapshot.elapsed, interval)
         : intervalEnterPrompt(runtime, snapshot.elapsed, interval, snapshot.intervalIndex);
 
       const spoken = await this.speakSafely(prompt, interval.narratorSpeed);
       if (!this.isCurrent(generation)) return;
       if (spoken) {
         this.lastSpokenIntervalId = interval.id;
-        if (isContinue) {
-          this.continuePhraseIndexByInterval.set(interval.id, phraseIndex + 1);
-        } else {
-          this.continuePhraseIndexByInterval.set(interval.id, 0);
-        }
       }
 
       await this.sleep(interval.narratorPauseSeconds * 1000);
