@@ -5,7 +5,7 @@ import {
   createSession,
   deleteSession,
   hasSession,
-} from "../services/narrator/sessionStore.js";
+} from "../services/narrator/storylineStore.js";
 
 export const apiRouter = Router();
 

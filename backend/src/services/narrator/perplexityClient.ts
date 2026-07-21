@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { ChatMessage } from "./sessionStore.js";
+import type { ChatMessage } from "./chatMessage.js";
 
 const PERPLEXITY_BASE_URL = process.env.PERPLEXITY_BASE_URL ?? "https://api.perplexity.ai";
 const MODEL = process.env.PERPLEXITY_MODEL ?? "sonar";

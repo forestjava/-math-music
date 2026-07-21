@@ -8,16 +8,11 @@ import {
   detectBannedLabel,
   detectBannedMetaTerm,
 } from "./bannedLabelDetect.js";
-import { parseNarratorReply } from "./extractSpeechBlock.js";
-import {
-  bannedFragmentsForCandidate,
-  bannedFragmentsForOpenThread,
-  buildClosedThreadRetryPrompt,
-  buildExactRetryPrompt,
-  collectSpeechHistory,
-} from "./exactRepeatDetect.js";
+import { buildTurnMessages } from "./buildTurnMessages.js";
 import { generateNarration } from "./perplexityClient.js";
-import { appendMessage, getMessages, type ChatMessage } from "./sessionStore.js";
+import { parseScene, type Scene } from "./scene.js";
+import { detectSceneViolations } from "./sceneControl.js";
+import { commitScene, getStoryline } from "./storylineStore.js";
 
 export interface NarrateParams {
   sessionId: string;
@@ -27,69 +22,59 @@ export interface NarrateParams {
 
 const announcedLogFiles = new Set<string>();
 
-/** Сколько раз подряд можно запросить перегенерацию reply из‑за нарушений. */
-const MAX_BAN_RETRIES = 16;
+/** Сколько раз подряд можно запросить перегенерацию сцены из‑за нарушений. */
+const MAX_BAN_RETRIES = 4;
 
 /**
- * Оркестратор фразы рассказчика: добавляет запрос в историю сеанса,
- * генерирует текст через Sonar, при нарушениях делает retry, озвучивает итог.
+ * Оркестратор хода рассказчика: контекст из storyline → генерация сцены →
+ * retry при нарушениях (лимит исчерпан — сцена идёт как есть) → коммит → озвучание.
  */
 export async function narrate(params: NarrateParams): Promise<SynthesizeResult> {
-  const messages = getMessages(params.sessionId);
-  if (!messages) {
+  const storyline = getStoryline(params.sessionId);
+  if (!storyline) {
     throw new Error(`Сессия ${params.sessionId} не найдена`);
   }
 
-  const userMessage: ChatMessage = { role: "user", content: params.prompt };
-  appendMessage(params.sessionId, userMessage);
+  // Retry-обмены живут только в этом массиве и в storyline не попадают.
+  const messages = buildTurnMessages(storyline, params.prompt);
 
-  const priorSpeeches = collectSpeechHistory(messages);
-
-  // 1) Получить reply
   let text = await generateNarration(messages);
   logNarratorExchange(params.sessionId, params.prompt, text);
+  let scene = parseScene(text);
 
-  let reply = parseNarratorReply(text);
-
-  // 2) Проверки; при нарушениях — retry до чистого ответа или лимита
-  let banRetry = 0;
-  while (true) {
-    const speechBanned = bannedFragmentsForCandidate(
-      priorSpeeches,
-      reply.speech,
-      undefined,
-      reply.characters,
-    );
-    const threadBanned = bannedFragmentsForOpenThread(reply.closedThreads, reply.openThread);
-    const apophasisHits = detectApophasis(reply.speech);
-    const bannedLabelHits = detectBannedLabel(reply.speech);
-    const bannedMetaHits = detectBannedMetaTerm(reply.speech);
-
-    const retryPrompt = [
-      speechBanned.length > 0 ? buildExactRetryPrompt(speechBanned) : "",
-      threadBanned.length > 0 ? buildClosedThreadRetryPrompt(threadBanned) : "",
-      apophasisHits.length > 0 ? buildApophasisRetryPrompt(apophasisHits) : "",
-      bannedLabelHits.length > 0 ? buildBannedLabelRetryPrompt(bannedLabelHits) : "",
-      bannedMetaHits.length > 0 ? buildBannedMetaRetryPrompt(bannedMetaHits) : "",
-    ].join("");
-
+  for (let attempt = 1; attempt <= MAX_BAN_RETRIES; attempt++) {
+    const retryPrompt = collectViolations(storyline, scene);
     if (!retryPrompt) break;
-    if (banRetry >= MAX_BAN_RETRIES) {
-      // лимит исчерпан — озвучиваем последний reply как есть
-      break;
-    }
 
-    banRetry += 1;
-    const userContent = `[попытка ${banRetry}/${MAX_BAN_RETRIES}] ${retryPrompt}`;
-    appendMessage(params.sessionId, { role: "user", content: userContent });
+    const userContent = `Предыдущий ответ отвергнут (попытка ${attempt}/${MAX_BAN_RETRIES}). Причина: ${retryPrompt}`;
+    messages.push(
+      { role: "assistant", content: text },
+      { role: "user", content: userContent },
+    );
     text = await generateNarration(messages);
     logNarratorExchange(params.sessionId, userContent, text);
-    reply = parseNarratorReply(text);
+    scene = parseScene(text);
   }
 
-  appendMessage(params.sessionId, { role: "assistant", content: text });
+  commitScene(params.sessionId, scene);
 
-  return synthesize({ text: reply.speech, speed: params.speed });
+  return synthesize({ text: scene.speech, speed: params.speed });
+}
+
+/** Все нарушения сцены одним retry-промптом; пустая строка — сцена чистая. */
+function collectViolations(storyline: Scene[], scene: Scene): string {
+  const apophasisHits = detectApophasis(scene.speech);
+  const labelHits = detectBannedLabel(scene.speech);
+  const metaHits = detectBannedMetaTerm(scene.speech);
+
+  return [
+    detectSceneViolations(storyline, scene),
+    apophasisHits.length > 0 ? buildApophasisRetryPrompt(apophasisHits) : "",
+    labelHits.length > 0 ? buildBannedLabelRetryPrompt(labelHits) : "",
+    metaHits.length > 0 ? buildBannedMetaRetryPrompt(metaHits) : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function isNarratorLogEnabled(): boolean {
