@@ -24,7 +24,7 @@ export const FAST_SESSION_MODE: SessionModeDefinition = {
   intervals: FAST_SESSION_INTERVALS,
 };
 
-export function getSessionMode(id: SessionMode): SessionModeDefinition {
+export function getSessionModeDefinition(id: SessionMode): SessionModeDefinition {
   return id === "soft" ? SOFT_SESSION_MODE : FAST_SESSION_MODE;
 }
 

@@ -18,6 +18,8 @@ export interface NarrateParams {
   sessionId: string;
   prompt: string;
   speed: number;
+  act: string;
+  stage: string;
 }
 
 const announcedLogFiles = new Set<string>();
@@ -56,7 +58,7 @@ export async function narrate(params: NarrateParams): Promise<SynthesizeResult> 
     scene = parseScene(text);
   }
 
-  commitScene(params.sessionId, scene);
+  commitScene(params.sessionId, { ...scene, act: params.act, stage: params.stage });
 
   return synthesize({ text: scene.speech, speed: params.speed });
 }

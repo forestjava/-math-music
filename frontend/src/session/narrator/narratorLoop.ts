@@ -55,7 +55,7 @@ export class NarratorLoop {
     if (!this.isCurrent(generation)) return;
 
     const runtime = this.deps.getRuntime();
-    await this.speakSafely(sessionStartPrompt(runtime), INTRO_END_SPEED);
+    await this.speakSafely(sessionStartPrompt(runtime), INTRO_END_SPEED, "Session Intro");
 
     if (!this.isCurrent(generation)) return;
 
@@ -85,7 +85,7 @@ export class NarratorLoop {
     await this.mainLoopPromise;
     if (generation !== this.generation) return;
 
-    await this.speakSafely(sessionEndPrompt(this.deps.getElapsedSeconds()), INTRO_END_SPEED);
+    await this.speakSafely(sessionEndPrompt(this.deps.getElapsedSeconds()), INTRO_END_SPEED, "Session Outro");
     await this.closeSession();
 
     if (generation === this.generation) {
@@ -117,7 +117,12 @@ export class NarratorLoop {
         ? intervalContinuePrompt(snapshot.elapsed, interval)
         : intervalEnterPrompt(runtime, snapshot.elapsed, interval, snapshot.intervalIndex);
 
-      const spoken = await this.speakSafely(prompt, interval.narratorSpeed);
+      const spoken = await this.speakSafely(
+        prompt,
+        interval.narratorSpeed,
+        interval.act,
+        interval.id,
+      );
       if (!this.isCurrent(generation)) return;
       if (spoken) {
         this.lastSpokenIntervalId = interval.id;
@@ -129,11 +134,16 @@ export class NarratorLoop {
   }
 
   /** Запрос + воспроизведение; ошибки логируются, шаг пропускается. */
-  private async speakSafely(prompt: string, speed: number): Promise<boolean> {
+  private async speakSafely(
+    prompt: string,
+    speed: number,
+    act = "",
+    stage = "",
+  ): Promise<boolean> {
     if (!this.sessionId) return false;
 
     try {
-      const bytes = await fetchNarratorAudio(this.sessionId, prompt, speed);
+      const bytes = await fetchNarratorAudio(this.sessionId, prompt, speed, act, stage);
       const buffer = await decodeNarratorBuffer(this.deps.context, bytes);
       await this.deps.channel.play(buffer);
       return true;

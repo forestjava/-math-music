@@ -9,7 +9,7 @@ import {
   DEFAULT_SESSION_SETTINGS,
   FAST_SESSION_MODE,
   SOFT_SESSION_MODE,
-  getSessionMode,
+  getSessionModeDefinition,
   type SessionMode,
   type SessionSettings,
 } from "../session/settings";
@@ -176,7 +176,7 @@ function renderIntervalMarkers(container: HTMLElement, intervals: IntervalDefini
 }
 
 function updateSubtitle(root: HTMLElement, settings: SessionSettings): void {
-  const modeLabel = getSessionMode(settings.mode).label;
+  const modeLabel = getSessionModeDefinition(settings.mode).label;
   const loopLabel = settings.loop ? "зациклена" : "один проход";
   setText(root, "subtitle", `${settings.durationMinutes} мин · ${modeLabel} · ${loopLabel}`);
 }

@@ -17,11 +17,13 @@ export async function fetchNarratorAudio(
   sessionId: string,
   prompt: string,
   speed: number,
+  act = "",
+  stage = "",
 ): Promise<ArrayBuffer> {
   const res = await fetch(`${API_BASE}/narrator`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId, prompt, speed }),
+    body: JSON.stringify({ sessionId, prompt, speed, act, stage }),
   });
 
   if (!res.ok) throw new Error(await res.text());

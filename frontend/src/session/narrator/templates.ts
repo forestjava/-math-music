@@ -1,11 +1,5 @@
-import type { IntervalDefinition, SessionAct } from "../intervals";
+import type { IntervalDefinition } from "../intervals";
 import type { SessionRuntime } from "../runtime";
-
-const ACT_LABELS: Record<SessionAct, string> = {
-  setup: "Act I setup",
-  confrontation: "Act II confrontation",
-  resolution: "Act III resolution",
-};
 
 /** hh:mm:ss — прошедшее время от старта сессии. */
 export function formatElapsed(seconds: number): string {
@@ -27,8 +21,8 @@ export function sessionStartPrompt(runtime: SessionRuntime): string {
   return (
     `Клиент инициировал сессию длительностью ${settings.durationMinutes} минут. ` +
     `` + // TODO user request
-    `Придумай метафорический сеттинг и основу игрового мира в характеристиках первой сцены, но в speech пока только подготовь клиента — ` +
-    `просто очень кратко попроси комфортно разместиться телом и вниманием во времени и пространстве.`
+    `Инициализируй пустую сцену, а в speech только подготовь клиента — ` +
+    `просто кратко попроси комфортно разместиться телом и вниманием во времени и пространстве.`
   );
 }
 
@@ -41,7 +35,7 @@ export function intervalEnterPrompt(
   let prompt = "";
 
   if (isFirstIntervalInAct(runtime, intervalIndex)) {
-    prompt += `${ACT_LABELS[interval.act]}.\n`;
+    prompt += `Act ${interval.act}.\n`;
   }
 
   prompt +=

@@ -18,6 +18,8 @@ interface NarratorBody {
   sessionId?: string;
   prompt?: string;
   speed?: number;
+  act?: string;
+  stage?: string;
 }
 
 apiRouter.post("/synthesize", async (req, res) => {
@@ -55,7 +57,7 @@ apiRouter.delete("/session/:id", (req, res) => {
 });
 
 apiRouter.post("/narrator", async (req, res) => {
-  const { sessionId, prompt, speed = 0.75 } = req.body as NarratorBody;
+  const { sessionId, prompt, speed = 0.75, act = "", stage = "" } = req.body as NarratorBody;
 
   if (!sessionId || typeof sessionId !== "string") {
     res.status(400).json({ error: "sessionId is required" });
@@ -78,7 +80,7 @@ apiRouter.post("/narrator", async (req, res) => {
   }
 
   try {
-    const result = await narrate({ sessionId, prompt, speed });
+    const result = await narrate({ sessionId, prompt, speed, act, stage });
     res.setHeader("Content-Type", result.contentType);
     res.send(result.buffer);
   } catch (error) {
