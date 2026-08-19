@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package speechkit.tts.v3;
+
+import "tts.proto";
+
+service Synthesizer {
+  rpc UtteranceSynthesis(UtteranceSynthesisRequest) returns (stream UtteranceSynthesisResponse);
+}

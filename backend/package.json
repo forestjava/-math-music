@@ -10,9 +10,11 @@
     "start": "node --env-file=.env dist/server.js"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1",
+    "@perplexity-ai/perplexity_ai": "^0.38.3",
     "cors": "^2.8.6",
-    "express": "^5.2.1",
-    "openai": "^6.42.0"
+    "express": "^5.2.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

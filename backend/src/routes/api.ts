@@ -1,25 +1,12 @@
 import { Router } from "express";
-import { synthesize } from "../services/yandexTts.js";
-import { narrate } from "../services/narrator/narrate.js";
-import {
-  createSession,
-  deleteSession,
-  hasSession,
-} from "../services/narrator/storylineStore.js";
+import { synthesize } from "../services/tts/yandexTts.js";
+import { abandonSession, refreshSession, startSession } from "../services/timeline/createSession.js";
 
 export const apiRouter = Router();
 
 interface SynthesizeBody {
   text?: string;
   speed?: number;
-}
-
-interface NarratorBody {
-  sessionId?: string;
-  prompt?: string;
-  speed?: number;
-  act?: string;
-  stage?: string;
 }
 
 apiRouter.post("/synthesize", async (req, res) => {
@@ -46,46 +33,45 @@ apiRouter.post("/synthesize", async (req, res) => {
   }
 });
 
-apiRouter.post("/session", (_req, res) => {
-  const sessionId = createSession();
-  res.json({ sessionId });
-});
+interface SessionBody {
+  userInput?: string;
+}
 
-apiRouter.delete("/session/:id", (req, res) => {
-  deleteSession(req.params.id);
-  res.status(204).end();
-});
+apiRouter.post("/session", async (req, res) => {
+  const { userInput } = req.body as SessionBody;
 
-apiRouter.post("/narrator", async (req, res) => {
-  const { sessionId, prompt, speed = 0.75, act = "", stage = "" } = req.body as NarratorBody;
-
-  if (!sessionId || typeof sessionId !== "string") {
-    res.status(400).json({ error: "sessionId is required" });
-    return;
-  }
-
-  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-    res.status(400).json({ error: "prompt is required" });
-    return;
-  }
-
-  if (typeof speed !== "number") {
-    res.status(400).json({ error: "speed must be a number" });
-    return;
-  }
-
-  if (!hasSession(sessionId)) {
-    res.status(404).json({ error: "session not found" });
+  if (!userInput || typeof userInput !== "string" || !userInput.trim()) {
+    res.status(400).json({ error: "userInput is required" });
     return;
   }
 
   try {
-    const result = await narrate({ sessionId, prompt, speed, act, stage });
-    res.setHeader("Content-Type", result.contentType);
-    res.send(result.buffer);
+    const session = await startSession(userInput);
+    res.json(session);
   } catch (error) {
-    console.error("[/narrator] ошибка:", error);
-    const message = error instanceof Error ? error.message : "Narrator synthesis failed";
+    console.error("[/session] ошибка:", error);
+    const message = error instanceof Error ? error.message : "Session scenario generation failed";
     res.status(502).json({ error: message });
   }
+});
+
+apiRouter.get("/session/:id", async (req, res) => {
+  try {
+    const snapshot = await refreshSession(req.params.id);
+    if (!snapshot) {
+      res.status(404).json({ error: "session not found" });
+      return;
+    }
+
+    res.json(snapshot);
+  } catch (error) {
+    console.error("[/session/:id] ошибка:", error);
+    const message = error instanceof Error ? error.message : "Session status retrieve failed";
+    res.status(502).json({ error: message });
+  }
+});
+
+apiRouter.delete("/session/:id", (req, res) => {
+  void abandonSession(req.params.id);
+  res.status(204).end();
 });

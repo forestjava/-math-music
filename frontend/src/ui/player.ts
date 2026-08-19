@@ -7,10 +7,6 @@ import { getActiveSessionRuntime } from "../session/activeRuntime";
 import type { IntervalDefinition } from "../session/intervals";
 import {
   DEFAULT_SESSION_SETTINGS,
-  FAST_SESSION_MODE,
-  SOFT_SESSION_MODE,
-  getSessionModeDefinition,
-  type SessionMode,
   type SessionSettings,
 } from "../session/settings";
 
@@ -29,36 +25,19 @@ export function mountPlayer(root: HTMLElement): void {
       </header>
       <section class="player__settings">
         <label class="player__field">
-          <span class="player__field-label">Продолжительность сессии</span>
-          <div class="player__field-control">
-            <input
-              type="number"
-              class="player__input"
-              data-setting="duration"
-              step="any"
-              value="${settings.durationMinutes}"
-            />
-            <span class="player__field-suffix">мин</span>
-          </div>
+          <span class="player__field-label">User Input</span>
+          <textarea
+            class="player__textarea"
+            data-setting="user-input"
+            rows="4"
+          >${settings.userInput}</textarea>
         </label>
-        <fieldset class="player__field player__field--mode">
-          <span class="player__field-label">Режим сессии</span>
-          <div class="player__mode-toggle" role="group" aria-label="Режим сессии">
-            <label class="player__mode-option">
-              <input type="radio" name="session-mode" value="soft" data-setting="mode-soft" checked />
-              <span>${SOFT_SESSION_MODE.label}</span>
-            </label>
-            <label class="player__mode-option">
-              <input type="radio" name="session-mode" value="fast" data-setting="mode-fast" />
-              <span>${FAST_SESSION_MODE.label}</span>
-            </label>
-          </div>
-        </fieldset>
         <label class="player__field player__field--checkbox">
           <input type="checkbox" class="player__checkbox" data-setting="loop" />
           <span>Зациклить</span>
         </label>
       </section>
+      <p class="player__error" data-el="error" hidden></p>
       <div class="player__controls">
         <button type="button" class="player__button" data-action="toggle">Play</button>
         <button type="button" class="player__button player__button--secondary" data-action="stop">Stop</button>
@@ -67,7 +46,7 @@ export function mountPlayer(root: HTMLElement): void {
         <div class="player__time-row">
           <span data-el="elapsed">00:00</span>
           <span data-el="phase">—</span>
-          <span data-el="total">${formatTime(settings.durationMinutes * 60)}</span>
+          <span data-el="total">—</span>
         </div>
         <div class="player__track">
           <div class="player__progress" data-el="progress"></div>
@@ -88,15 +67,14 @@ export function mountPlayer(root: HTMLElement): void {
   const toggleButton = root.querySelector<HTMLButtonElement>('[data-action="toggle"]')!;
   const stopButton = root.querySelector<HTMLButtonElement>('[data-action="stop"]')!;
   const intervalsEl = root.querySelector<HTMLDivElement>('[data-el="intervals"]')!;
-  const durationInput = root.querySelector<HTMLInputElement>('[data-setting="duration"]')!;
   const loopCheckbox = root.querySelector<HTMLInputElement>('[data-setting="loop"]')!;
-  const modeSoftInput = root.querySelector<HTMLInputElement>('[data-setting="mode-soft"]')!;
-  const modeFastInput = root.querySelector<HTMLInputElement>('[data-setting="mode-fast"]')!;
+  const userInputField = root.querySelector<HTMLTextAreaElement>('[data-setting="user-input"]')!;
   renderIntervalMarkers(intervalsEl, getActiveSessionRuntime().intervals);
-  updateSubtitle(root, settings);
+  updateSubtitle(root, settings, 0);
   setSettingsEnabled(root, true);
 
   toggleButton.addEventListener("click", () => {
+    applySettingsFromUi();
     void engine.toggle().then(() => updateButtonLabel());
   });
 
@@ -106,26 +84,19 @@ export function mountPlayer(root: HTMLElement): void {
     setSettingsEnabled(root, true);
   });
 
-  durationInput.addEventListener("change", () => {
-    applySettingsFromUi();
-  });
-
   loopCheckbox.addEventListener("change", () => {
     applySettingsFromUi();
   });
 
-  modeSoftInput.addEventListener("change", () => {
-    if (modeSoftInput.checked) applySettingsFromUi();
-  });
-
-  modeFastInput.addEventListener("change", () => {
-    if (modeFastInput.checked) applySettingsFromUi();
+  userInputField.addEventListener("change", () => {
+    applySettingsFromUi();
   });
 
   engine.setValuesListener((values) => {
     updateUi(values);
     updateButtonLabel(values.playbackState);
     setSettingsEnabled(root, values.playbackState === "stopped");
+    toggleButton.disabled = values.playbackState === "preparing";
   });
 
   function applySettingsFromUi(): void {
@@ -133,33 +104,21 @@ export function mountPlayer(root: HTMLElement): void {
     if (!engine.setSessionSettings(nextSettings)) return;
 
     settings = nextSettings;
-    renderIntervalMarkers(intervalsEl, getActiveSessionRuntime().intervals);
-    updateSubtitle(root, settings);
-    setText(root, "total", formatTime(settings.durationMinutes * 60));
-    updateUi({
-      playbackState: engine.getPlaybackState(),
-      elapsed: 0,
-      absoluteElapsed: 0,
-      durationSeconds: settings.durationMinutes * 60,
-      loop: settings.loop,
-      rhythm: 0,
-      carrier: 0,
-      leftCarrier: 0,
-      rightCarrier: 0,
-      intervalId: getActiveSessionRuntime().intervals[0].id,
-    });
+    updateSubtitle(root, settings, engine.getSessionRuntime().durationSeconds);
   }
 
   function readSettingsFromUi(): SessionSettings {
-    const mode: SessionMode = modeSoftInput.checked ? "soft" : "fast";
     return {
-      durationMinutes: Number(durationInput.value),
-      mode,
       loop: loopCheckbox.checked,
+      userInput: userInputField.value,
     };
   }
 
   function updateButtonLabel(state = engine.getPlaybackState()): void {
+    if (state === "preparing") {
+      toggleButton.textContent = "pending scenario";
+      return;
+    }
     toggleButton.textContent = state === "playing" ? "Pause" : "Play";
   }
 }
@@ -175,14 +134,14 @@ function renderIntervalMarkers(container: HTMLElement, intervals: IntervalDefini
   }
 }
 
-function updateSubtitle(root: HTMLElement, settings: SessionSettings): void {
-  const modeLabel = getSessionModeDefinition(settings.mode).label;
+function updateSubtitle(root: HTMLElement, settings: SessionSettings, durationSeconds: number): void {
   const loopLabel = settings.loop ? "зациклена" : "один проход";
-  setText(root, "subtitle", `${settings.durationMinutes} мин · ${modeLabel} · ${loopLabel}`);
+  const durationLabel = durationSeconds > 0 ? formatTime(durationSeconds) : "—";
+  setText(root, "subtitle", `${durationLabel} · ${loopLabel}`);
 }
 
 function setSettingsEnabled(root: HTMLElement, enabled: boolean): void {
-  for (const input of root.querySelectorAll<HTMLInputElement>("[data-setting]")) {
+  for (const input of root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-setting]")) {
     input.disabled = !enabled;
   }
 }
@@ -197,11 +156,18 @@ function updateUi(values: LiveValues): void {
 
   setText(playerRoot, "elapsed", formatTime(progressBase));
   setText(playerRoot, "phase", phaseLabel);
-  setText(playerRoot, "rhythm", `${values.rhythm.toFixed(2)} Hz`);
-  setText(playerRoot, "carrier", `${values.carrier.toFixed(1)} Hz`);
-  setText(playerRoot, "left", `${values.leftCarrier.toFixed(1)} Hz`);
-  setText(playerRoot, "right", `${values.rightCarrier.toFixed(1)} Hz`);
-  setText(playerRoot, "total", formatTime(values.durationSeconds));
+  setText(playerRoot, "rhythm", values.rhythm ? `${values.rhythm.toFixed(2)} Hz` : "—");
+  setText(playerRoot, "carrier", values.carrier ? `${values.carrier.toFixed(1)} Hz` : "—");
+  setText(playerRoot, "left", values.leftCarrier ? `${values.leftCarrier.toFixed(1)} Hz` : "—");
+  setText(playerRoot, "right", values.rightCarrier ? `${values.rightCarrier.toFixed(1)} Hz` : "—");
+  setText(playerRoot, "total", values.durationSeconds > 0 ? formatTime(values.durationSeconds) : "—");
+  updateSubtitle(playerRoot, { loop: values.loop, userInput: "" }, values.durationSeconds);
+
+  const errorEl = playerRoot.querySelector<HTMLElement>('[data-el="error"]');
+  if (errorEl) {
+    errorEl.hidden = !values.error;
+    errorEl.textContent = values.error ?? "";
+  }
 
   const progressEl = playerRoot.querySelector<HTMLDivElement>('[data-el="progress"]');
   if (progressEl) {

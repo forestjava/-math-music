@@ -3,6 +3,7 @@ import type { Interval } from "../session/intervals";
 import { SessionRuntime } from "../session/runtime";
 import type { SessionSettings } from "../session/settings";
 import { NarratorLoop } from "../session/narrator/narratorLoop";
+import type { SessionTimeline } from "./narrator/narratorClient";
 import { NarratorChannel } from "./narrator/narratorChannel";
 import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
 import { computeCenterOutputs, computeChannelOutputs } from "./voices/compute";
@@ -12,7 +13,7 @@ import { randomPhaseWave } from "./waveform";
 const FADE_SECONDS = 0.2;
 const FADE_DELAY_MS = FADE_SECONDS * 1000 + 100;
 
-export type PlaybackState = "stopped" | "playing" | "paused";
+export type PlaybackState = "stopped" | "preparing" | "playing" | "paused";
 
 export interface LiveValues {
   playbackState: PlaybackState;
@@ -25,6 +26,7 @@ export interface LiveValues {
   leftCarrier: number;
   rightCarrier: number;
   intervalId: Interval;
+  error: string | null;
 }
 
 type ValuesListener = (values: LiveValues) => void;
@@ -40,7 +42,8 @@ export class BinauralSessionEngine {
   private narratorChannel: NarratorChannel | null = null;
   private narratorLoop: NarratorLoop | null = null;
   private effectsStarted = false;
-  private finishing = false;
+  private prepareAbort: AbortController | null = null;
+  private lastError: string | null = null;
 
   private playbackState: PlaybackState = "stopped";
   private sessionStartAudio = 0;
@@ -52,7 +55,7 @@ export class BinauralSessionEngine {
 
   constructor(settings: SessionSettings) {
     this.settings = { ...settings };
-    this.runtime = new SessionRuntime(this.settings);
+    this.runtime = new SessionRuntime(this.settings, 0);
     setActiveSessionRuntime(this.runtime);
   }
 
@@ -68,7 +71,7 @@ export class BinauralSessionEngine {
     if (this.playbackState !== "stopped") return false;
 
     this.settings = { ...settings };
-    this.runtime = new SessionRuntime(this.settings);
+    this.runtime = new SessionRuntime(this.settings, this.runtime.durationSeconds);
     setActiveSessionRuntime(this.runtime);
     this.emitValues();
     return true;
@@ -83,7 +86,7 @@ export class BinauralSessionEngine {
   }
 
   async play(): Promise<void> {
-    if (this.playbackState === "playing") return;
+    if (this.playbackState === "playing" || this.playbackState === "preparing") return;
 
     if (!this.context) {
       this.context = new AudioContext();
@@ -96,19 +99,38 @@ export class BinauralSessionEngine {
     }
 
     setActiveSessionRuntime(this.runtime);
-    const wasStopped = this.playbackState === "stopped";
-    this.playbackState = "playing";
 
-    if (wasStopped || !this.effectsStarted) {
-      this.pausedElapsed = 0;
-      this.sessionStartAudio = this.context.currentTime;
-      this.emitValues();
-      await this.narratorLoop?.start();
+    if (this.playbackState === "paused") {
+      this.playbackState = "playing";
+      this.lastError = null;
+      if (this.effectsStarted) {
+        this.beginEffects();
+        this.narratorLoop?.resume();
+      } else {
+        await this.narratorLoop?.start();
+      }
       return;
     }
 
-    this.beginEffects();
-    this.narratorLoop?.resume();
+    this.prepareAbort = new AbortController();
+    this.playbackState = "preparing";
+    this.lastError = null;
+    this.pausedElapsed = 0;
+    this.emitValues();
+
+    try {
+      await this.narratorLoop?.start(this.prepareAbort.signal);
+    } catch (error) {
+      if (this.prepareAbort.signal.aborted) {
+        this.playbackState = "stopped";
+        this.emitValues();
+        return;
+      }
+
+      this.lastError = error instanceof Error ? error.message : "Не удалось получить таймлайн сессии";
+      this.playbackState = "stopped";
+      this.emitValues();
+    }
   }
 
   /** Запуск аудиальных эффектов (вызывается нарратором после вступления). */
@@ -136,9 +158,19 @@ export class BinauralSessionEngine {
       channel: this.narratorChannel,
       getRuntime: () => this.runtime,
       getElapsedSeconds: () => this.getElapsedSeconds(),
+      getUserInput: () => this.settings.userInput,
+      onTimelineReady: (timeline) => this.applyTimeline(timeline),
       onEffectsReady: () => this.beginEffects(),
-      onSessionFinished: () => this.finalizeSession(),
+      onNarrationFinished: () => this.finalizeSession(),
+      onLoopRestart: () => this.restartEffectsPass(),
     });
+  }
+
+  private applyTimeline(timeline: SessionTimeline): void {
+    this.runtime = new SessionRuntime(this.settings, timeline.durationSeconds);
+    setActiveSessionRuntime(this.runtime);
+    this.playbackState = "playing";
+    this.emitValues();
   }
 
   pause(): void {
@@ -146,7 +178,6 @@ export class BinauralSessionEngine {
 
     this.pausedElapsed = this.effectsStarted ? this.getElapsedSeconds() : 0;
     this.playbackState = "paused";
-    this.finishing = false;
     this.scheduler.stop();
     this.stopUiLoop();
     this.narratorLoop?.pause();
@@ -160,12 +191,17 @@ export class BinauralSessionEngine {
   }
 
   stop(): void {
-    if (!this.context) return;
+    this.prepareAbort?.abort();
+    this.prepareAbort = null;
+    if (!this.context) {
+      this.playbackState = "stopped";
+      this.emitValues();
+      return;
+    }
 
     this.playbackState = "stopped";
     this.pausedElapsed = 0;
     this.effectsStarted = false;
-    this.finishing = false;
     this.scheduler.stop();
     this.stopUiLoop();
     this.narratorLoop?.stop();
@@ -303,6 +339,8 @@ export class BinauralSessionEngine {
   }
 
   private getElapsedSeconds(): number {
+    if (!this.effectsStarted) return this.pausedElapsed;
+
     if (this.playbackState === "playing" && this.context) {
       return Math.max(0, this.context.currentTime - this.sessionStartAudio);
     }
@@ -341,7 +379,8 @@ export class BinauralSessionEngine {
         right: this.rightChannel,
         center: this.centerChannel,
         sessionStartAudio: this.sessionStartAudio,
-        getPlaybackState: () => this.playbackState,
+        durationSeconds: this.runtime.durationSeconds,
+        getPlaybackState: () => (this.playbackState === "preparing" ? "stopped" : this.playbackState),
         onSessionComplete: () => this.handleSessionComplete(),
       },
       this.getElapsedSeconds(),
@@ -349,25 +388,25 @@ export class BinauralSessionEngine {
   }
 
   private handleSessionComplete(): void {
-    if (this.playbackState !== "playing" || this.finishing) return;
+    if (this.playbackState !== "playing") return;
 
-    this.finishing = true;
     this.scheduler.stop();
     this.stopUiLoop();
     this.fadeMaster(0);
+    this.emitValues();
+  }
 
-    if (this.narratorLoop) {
-      void this.narratorLoop.finish();
-    } else {
-      this.finalizeSession();
-    }
+  private restartEffectsPass(): void {
+    if (this.playbackState !== "playing" || !this.context) return;
+
+    this.pausedElapsed = 0;
+    this.beginEffects();
   }
 
   private finalizeSession(): void {
     this.playbackState = "stopped";
     this.pausedElapsed = 0;
     this.effectsStarted = false;
-    this.finishing = false;
     this.narratorLoop?.stop();
 
     window.setTimeout(() => {
@@ -414,6 +453,7 @@ export class BinauralSessionEngine {
       leftCarrier: snapshot.leftCarrier,
       rightCarrier: snapshot.rightCarrier,
       intervalId: snapshot.interval.id,
+      error: this.lastError,
     });
   }
 }

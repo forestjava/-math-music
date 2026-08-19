@@ -1,11 +1,12 @@
 import {
+  SESSION_INTERVALS,
   totalSegments,
   type IntervalDefinition,
   type SessionAct,
 } from "./intervals";
 import { carrierCenterHz } from "./carrierPlan";
 import { lerp } from "./math";
-import { DEFAULT_SESSION_SETTINGS, getSessionModeDefinition, type SessionSettings } from "./settings";
+import { DEFAULT_SESSION_SETTINGS, type SessionSettings } from "./settings";
 
 export interface IntervalPosition {
   interval: IntervalDefinition;
@@ -40,11 +41,17 @@ export class SessionRuntime {
   readonly durationSeconds: number;
   readonly segmentDuration: number;
 
-  constructor(settings: SessionSettings = DEFAULT_SESSION_SETTINGS) {
+  constructor(
+    settings: SessionSettings = DEFAULT_SESSION_SETTINGS,
+    durationSeconds = 0,
+  ) {
     this.settings = { ...settings };
-    this.intervals = getSessionModeDefinition(this.settings.mode).intervals;
-    this.durationSeconds = this.settings.durationMinutes * 60;
-    this.segmentDuration = this.durationSeconds / totalSegments(this.intervals);
+    this.intervals = SESSION_INTERVALS;
+    this.durationSeconds = durationSeconds;
+    this.segmentDuration =
+      this.durationSeconds > 0
+        ? this.durationSeconds / totalSegments(this.intervals)
+        : 0;
   }
 
   intervalDuration(interval: IntervalDefinition): number {

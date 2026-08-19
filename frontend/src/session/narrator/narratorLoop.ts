@@ -1,96 +1,80 @@
-import {
-  decodeNarratorBuffer,
-  fetchNarratorAudio,
-  finalizeNarratorSession,
-  initNarratorSession,
-} from "../../audio/narrator/narratorClient";
 import type { NarratorChannel } from "../../audio/narrator/narratorChannel";
-import type { Interval } from "../intervals";
-import type { SessionRuntime } from "../runtime";
 import {
-  intervalContinuePrompt,
-  intervalEnterPrompt,
-  sessionEndPrompt,
-  sessionStartPrompt,
-} from "./templates";
+  createSession,
+  decodeNarratorBuffer,
+  fetchSynthesizedAudio,
+  finalizeSession,
+  timecodeToSeconds,
+  type SessionTimeline,
+  type TtsCue,
+} from "../../audio/narrator/narratorClient";
+import type { SessionRuntime } from "../runtime";
 
 export interface NarratorLoopDeps {
   context: AudioContext;
   channel: NarratorChannel;
   getRuntime: () => SessionRuntime;
   getElapsedSeconds: () => number;
+  getUserInput: () => string;
+  onTimelineReady: (timeline: SessionTimeline) => void;
   onEffectsReady: () => void;
-  onSessionFinished: () => void;
+  onNarrationFinished: () => void;
+  onLoopRestart: () => void;
 }
 
-/** Скорость речи для вступления и заключения (вне интервалов). */
-const INTRO_END_SPEED = 1;
-
-/** Минимальная пауза после вступительной речи перед первой фразой (сек). */
-const POST_INTRO_PAUSE_SECONDS = 4;
-
 /**
- * Последовательный цикл нарратора «по факту»: ждёт фактического завершения
- * каждого шага (запрос → воспроизведение → пауза) и только потом смотрит,
- * в каком интервале находится сессия.
+ * Озвучка по таймкодам бэкенда: первая фраза — вступление без ритмов,
+ * остальные — когда elapsed сессии достигает метки.
  */
 export class NarratorLoop {
   private running = false;
   private generation = 0;
-  private sessionId: string | null = null;
-  private lastSpokenIntervalId: Interval | null = null;
+  private timeline: SessionTimeline | null = null;
+  private nextCueIndex = 1;
+  private prefetchCache = new Map<number, Promise<AudioBuffer>>();
   private sleepResolvers = new Set<() => void>();
-  private mainLoopPromise: Promise<void> = Promise.resolve();
 
   constructor(private readonly deps: NarratorLoopDeps) {}
 
-  /** Старт из stopped: новая сессия → вступление → эффекты → основной цикл. */
-  async start(): Promise<void> {
+  async start(signal?: AbortSignal): Promise<void> {
     if (this.running) return;
     const generation = ++this.generation;
     this.running = true;
-    this.lastSpokenIntervalId = null;
+    this.nextCueIndex = 1;
+    this.prefetchCache.clear();
 
-    await this.openSession();
-    if (!this.isCurrent(generation)) return;
+    if (!this.timeline) {
+      try {
+        this.timeline = await createSession(this.deps.getUserInput(), signal);
+      } catch (error) {
+        this.running = false;
+        this.timeline = null;
+        throw error;
+      }
+      if (!this.isCurrent(generation)) return;
+      this.deps.onTimelineReady(this.timeline);
+    }
 
-    const runtime = this.deps.getRuntime();
-    await this.speakSafely(sessionStartPrompt(runtime), INTRO_END_SPEED, "Session Intro");
+    const cues = this.timeline.cues;
+    if (cues.length === 0) {
+      this.deps.onEffectsReady();
+      return;
+    }
 
+    void this.prefetch(0);
+    await this.speakCue(0, cues[0]);
     if (!this.isCurrent(generation)) return;
 
     this.deps.onEffectsReady();
-
-    await this.sleep(POST_INTRO_PAUSE_SECONDS * 1000);
-    if (!this.isCurrent(generation)) return;
-
-    this.mainLoopPromise = this.runMainLoop(generation);
+    void this.prefetch(1);
+    void this.runCueLoop(generation);
   }
 
-  /** Возобновление из paused: без вступления, цикл с текущего elapsed. */
   resume(): void {
-    if (this.running) return;
+    if (this.running || !this.timeline) return;
     const generation = ++this.generation;
     this.running = true;
-    this.mainLoopPromise = this.runMainLoop(generation);
-  }
-
-  /**
-   * Завершение сессии (!loop): даёт текущей фразе доиграть до конца,
-   * затем произносит заключительное слово и финиширует.
-   */
-  async finish(): Promise<void> {
-    const generation = this.stopLoopGracefully();
-
-    await this.mainLoopPromise;
-    if (generation !== this.generation) return;
-
-    await this.speakSafely(sessionEndPrompt(this.deps.getElapsedSeconds()), INTRO_END_SPEED, "Session Outro");
-    await this.closeSession();
-
-    if (generation === this.generation) {
-      this.deps.onSessionFinished();
-    }
+    void this.runCueLoop(generation);
   }
 
   pause(): void {
@@ -99,97 +83,100 @@ export class NarratorLoop {
 
   stop(): void {
     this.cancel();
-    this.lastSpokenIntervalId = null;
+    this.nextCueIndex = 1;
+    this.prefetchCache.clear();
     void this.closeSession();
+    this.timeline = null;
   }
 
-  private async runMainLoop(generation: number): Promise<void> {
+  private async runCueLoop(generation: number): Promise<void> {
+    const cues = this.timeline?.cues ?? [];
+
     while (this.isCurrent(generation)) {
       const runtime = this.deps.getRuntime();
       const elapsed = this.deps.getElapsedSeconds();
-      if (runtime.isSessionComplete(elapsed)) return;
 
-      const snapshot = runtime.getSessionSnapshot(elapsed);
-      const interval = snapshot.interval;
-      const isContinue = interval.id === this.lastSpokenIntervalId;
+      if (this.nextCueIndex >= cues.length) {
+        if (elapsed < runtime.durationSeconds) {
+          await this.sleep(Math.min((runtime.durationSeconds - elapsed) * 1000, 250));
+          continue;
+        }
 
-      const prompt = isContinue
-        ? intervalContinuePrompt(snapshot.elapsed, interval)
-        : intervalEnterPrompt(runtime, snapshot.elapsed, interval, snapshot.intervalIndex);
+        if (runtime.settings.loop) {
+          this.nextCueIndex = 1;
+          this.deps.onLoopRestart();
+          void this.prefetch(1);
+          continue;
+        }
 
-      const spoken = await this.speakSafely(
-        prompt,
-        interval.narratorSpeed,
-        interval.act,
-        interval.id,
-      );
-      if (!this.isCurrent(generation)) return;
-      if (spoken) {
-        this.lastSpokenIntervalId = interval.id;
+        this.deps.onNarrationFinished();
+        return;
       }
 
-      await this.sleep(interval.narratorPauseSeconds * 1000);
-      if (!this.isCurrent(generation)) return;
+      const cue = cues[this.nextCueIndex];
+      const at = timecodeToSeconds(cue.timecode);
+      const waitMs = (at - elapsed) * 1000;
+      if (waitMs > 20) {
+        await this.sleep(Math.min(waitMs, 250));
+        continue;
+      }
+
+      const index = this.nextCueIndex;
+      this.nextCueIndex += 1;
+      void this.prefetch(this.nextCueIndex);
+      await this.speakCue(index, cue);
     }
   }
 
-  /** Запрос + воспроизведение; ошибки логируются, шаг пропускается. */
-  private async speakSafely(
-    prompt: string,
-    speed: number,
-    act = "",
-    stage = "",
-  ): Promise<boolean> {
-    if (!this.sessionId) return false;
+  private prefetch(index: number): void {
+    const cue = this.timeline?.cues[index];
+    if (!cue || this.prefetchCache.has(index)) return;
+    this.prefetchCache.set(index, this.loadCueBuffer(cue));
+  }
 
+  private async speakCue(index: number, cue: TtsCue): Promise<void> {
     try {
-      const bytes = await fetchNarratorAudio(this.sessionId, prompt, speed, act, stage);
-      const buffer = await decodeNarratorBuffer(this.deps.context, bytes);
+      const pending = this.prefetchCache.get(index) ?? this.loadCueBuffer(cue);
+      this.prefetchCache.delete(index);
+      const buffer = await pending;
       await this.deps.channel.play(buffer);
-      return true;
     } catch (error) {
       console.warn("[narrator] фраза пропущена:", error);
-      return false;
     }
   }
 
-  /** Открывает новую серверную сессию; при ошибке цикл продолжит без озвучки. */
-  private async openSession(): Promise<void> {
-    try {
-      this.sessionId = await initNarratorSession();
-    } catch (error) {
-      this.sessionId = null;
-      console.warn("[narrator] не удалось создать сессию:", error);
-    }
+  private async loadCueBuffer(cue: TtsCue): Promise<AudioBuffer> {
+    const at = timecodeToSeconds(cue.timecode);
+    const speed = this.speedAt(at);
+    const bytes = await fetchSynthesizedAudio(cue.text, speed);
+    return decodeNarratorBuffer(this.deps.context, bytes);
   }
 
-  /** Финализирует серверную сессию и очищает локальный идентификатор. */
+  private speedAt(elapsedSeconds: number): number {
+    const runtime = this.deps.getRuntime();
+    if (runtime.durationSeconds <= 0) {
+      return runtime.intervals[0].narratorSpeed;
+    }
+    const at = Math.min(elapsedSeconds, Math.max(0, runtime.durationSeconds - 1e-6));
+    return runtime.getIntervalPosition(at).interval.narratorSpeed;
+  }
+
   private async closeSession(): Promise<void> {
-    const sessionId = this.sessionId;
-    this.sessionId = null;
+    const sessionId = this.timeline?.sessionId;
     if (!sessionId) return;
 
     try {
-      await finalizeNarratorSession(sessionId);
+      await finalizeSession(sessionId);
     } catch (error) {
       console.warn("[narrator] не удалось завершить сессию:", error);
     }
   }
 
-  /** Жёсткая остановка (pause/stop): обрывает текущую фразу немедленно. */
   private cancel(): void {
     this.running = false;
     this.generation++;
     this.deps.channel.stop();
     this.wakeSleepers();
-  }
-
-  /** Мягкая остановка цикла: новых фраз не будет, текущая доигрывает сама. */
-  private stopLoopGracefully(): number {
-    this.running = false;
-    this.generation++;
-    this.wakeSleepers();
-    return this.generation;
   }
 
   private isCurrent(generation: number): boolean {
