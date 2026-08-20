@@ -46,7 +46,12 @@ export async function waitForScenario(
 
     while (true) {
       throwIfAborted(controller.signal);
-      const snapshot = await getSession(sessionId, controller.signal);
+      const snapshot = await pollSession(sessionId, controller.signal);
+
+      if (!snapshot) {
+        await sleep(POLL_INTERVAL_MS, controller.signal);
+        continue;
+      }
 
       if (snapshot.status === "completed") {
         if (!Array.isArray(snapshot.cues) || typeof snapshot.durationSeconds !== "number") {
@@ -99,10 +104,31 @@ async function postSession(userInput: string, signal: AbortSignal): Promise<Sess
   return data;
 }
 
-async function getSession(sessionId: string, signal: AbortSignal): Promise<SessionSnapshot> {
-  const res = await fetch(`${API_BASE}/session/${sessionId}`, { signal });
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as SessionSnapshot;
+/** Успешный снимок или null, если это сбой проверки и нужно повторить с тем же session id. */
+async function pollSession(
+  sessionId: string,
+  signal: AbortSignal,
+): Promise<SessionSnapshot | null> {
+  try {
+    const res = await fetch(`${API_BASE}/session/${sessionId}`, { signal });
+    if (res.status === 404) {
+      throw new Error("session not found");
+    }
+    if (!res.ok) {
+      console.warn(`[session ${sessionId}] сбой проверки статуса (${res.status}), повтор`);
+      return null;
+    }
+    return (await res.json()) as SessionSnapshot;
+  } catch (error) {
+    if (signal.aborted || isAbortError(error)) throw error;
+    if (error instanceof Error && error.message === "session not found") throw error;
+    console.warn(`[session ${sessionId}] сбой проверки статуса, повтор`, error);
+    return null;
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 function scenarioErrorMessage(status: string): string {

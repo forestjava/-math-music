@@ -6,8 +6,8 @@ import type { HarmonicSlot } from "./harmonic";
 import { memberGainAt } from "./gains";
 import type { ChannelSide, ChoirMemberSnapshot, VoiceSample, VoiceTickState } from "./types";
 
-/** Пиковый мастер-уровень в середине сессии (вершина полусинусоиды). */
-export const MAX_MASTER_OUTPUT_LEVEL = 0.1;
+/** Пиковый мастер-уровень в середине сессии (вершина полуокружности). */
+export const MAX_MASTER_OUTPUT_LEVEL = 0.08;
 
 function channelFrequency(centerHz: number, rhythmHz: number, side: ChannelSide): number {
   const half = rhythmHz / 2;
@@ -15,14 +15,16 @@ function channelFrequency(centerHz: number, rhythmHz: number, side: ChannelSide)
 }
 
 /**
- * y(elapsed): огибающая мастер-уровня — полусинусоида по всей сессии:
+ * y(elapsed): огибающая мастер-уровня — полуокружность 2√(p(1−p)) по всей сессии:
  * 0 в начале, MAX_MASTER_OUTPUT_LEVEL в середине, 0 в конце.
  */
 export function computeMasterOutput(elapsed: number): number {
   const runtime = getActiveSessionRuntime();
+  const duration = runtime.durationSeconds;
   const phase = runtime.sessionPhaseElapsed(elapsed);
-  const progress = runtime.durationSeconds > 0 ? phase / runtime.durationSeconds : 0;
-  return MAX_MASTER_OUTPUT_LEVEL * Math.sin(Math.PI * progress);
+  const progress = Math.min(1, Math.max(0, phase / duration));
+
+  return MAX_MASTER_OUTPUT_LEVEL * Math.sqrt(progress * (1 - progress));
 }
 
 /** y(elapsed): частота и gain одного голоса в канале. */

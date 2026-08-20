@@ -5,6 +5,7 @@ import {
   isTerminalStatus,
   retrieveBackgroundScenario,
   startBackgroundScenario,
+  type RetrievedRun,
 } from "./agentClient.js";
 import { parseSessionScenario, type TtsCue } from "./parseTts.js";
 import { loadTimelinePrompt } from "./prompt.js";
@@ -57,7 +58,17 @@ export async function refreshSession(sessionId: string): Promise<SessionSnapshot
     return toSnapshot(record);
   }
 
-  const run = await retrieveBackgroundScenario(record.perplexityResponseId);
+  let run: RetrievedRun;
+  try {
+    run = await retrieveBackgroundScenario(record.perplexityResponseId);
+  } catch (error) {
+    console.warn(
+      `[session ${sessionId}] сбой проверки статуса, задание не отменяем:`,
+      error instanceof Error ? error.message : error,
+    );
+    return toSnapshot(record);
+  }
+
   record.status = run.status;
 
   if (run.status === "completed") {

@@ -51,12 +51,11 @@ export async function startBackgroundScenario(
 ): Promise<BackgroundRun> {
   const client = createClient();
   const response = await client.responses.create({
-    preset: "high",
+    preset: "medium",
     instructions,
     input: userInput,
     tools: AGENT_TOOLS,
     background: true,
-    temperature: 1.1,
   });
 
   if (!response.id) {
