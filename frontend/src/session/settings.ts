@@ -3,7 +3,7 @@ export interface SessionSettings {
   userInput: string;
 }
 
-export const DEFAULT_USER_INPUT = "Создай новый сценарий этой сессии";
+export const DEFAULT_USER_INPUT = "Создай новый уникальный сценарий этой сессии";
 
 export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   loop: false,

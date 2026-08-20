@@ -1,11 +1,5 @@
 import type { HarmonicSlot } from "./harmonic";
 
-export type { HarmonicSlot };
-export { HARMONIC_SLOTS, HARMONIC_LABELS, CHOIR_MEMBER_COUNT } from "./harmonic";
-
-export type { ChoirMember } from "./choirMembers";
-export { CHOIR_MEMBERS } from "./choirMembers";
-
 export type ChannelSide = "left" | "right";
 
 export interface VoiceSample {

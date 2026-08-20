@@ -56,6 +56,7 @@ export async function startBackgroundScenario(
     input: userInput,
     tools: AGENT_TOOLS,
     background: true,
+    temperature: 1.1,
   });
 
   if (!response.id) {

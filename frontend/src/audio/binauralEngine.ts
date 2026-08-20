@@ -1,12 +1,12 @@
 import { setActiveSessionRuntime } from "../session/activeRuntime";
 import type { Interval } from "../session/intervals";
 import { SessionRuntime } from "../session/runtime";
+import { abandonScenario, waitForScenario, type SessionScenario } from "../session/scenario";
 import type { SessionSettings } from "../session/settings";
-import { NarratorLoop } from "../session/narrator/narratorLoop";
-import type { SessionTimeline } from "./narrator/narratorClient";
+import { NarratorLoop } from "./narrator/narratorLoop";
 import { NarratorChannel } from "./narrator/narratorChannel";
 import { CHOIR_MEMBER_COUNT } from "./voices/harmonic";
-import { computeCenterOutputs, computeChannelOutputs } from "./voices/compute";
+import { sampleCenterChannelAt, sampleChannelAt } from "./voices/compute";
 import { TickChainScheduler, type ScheduledChannel } from "./tickChain";
 import { randomPhaseWave } from "./waveform";
 
@@ -41,6 +41,7 @@ export class BinauralSessionEngine {
 
   private narratorChannel: NarratorChannel | null = null;
   private narratorLoop: NarratorLoop | null = null;
+  private scenarioId: string | null = null;
   private effectsStarted = false;
   private prepareAbort: AbortController | null = null;
   private lastError: string | null = null;
@@ -119,8 +120,19 @@ export class BinauralSessionEngine {
     this.emitValues();
 
     try {
-      await this.narratorLoop?.start(this.prepareAbort.signal);
+      const scenario = await waitForScenario(this.settings.userInput, this.prepareAbort.signal);
+      if (this.prepareAbort.signal.aborted) {
+        void abandonScenario(scenario.sessionId);
+        this.playbackState = "stopped";
+        this.emitValues();
+        return;
+      }
+
+      this.scenarioId = scenario.sessionId;
+      this.applyTimeline(scenario);
+      await this.narratorLoop?.start(scenario.cues);
     } catch (error) {
+      this.closeScenario();
       if (this.prepareAbort.signal.aborted) {
         this.playbackState = "stopped";
         this.emitValues();
@@ -156,18 +168,26 @@ export class BinauralSessionEngine {
     this.narratorLoop = new NarratorLoop({
       context: this.context,
       channel: this.narratorChannel,
-      getRuntime: () => this.runtime,
       getElapsedSeconds: () => this.getElapsedSeconds(),
-      getUserInput: () => this.settings.userInput,
-      onTimelineReady: (timeline) => this.applyTimeline(timeline),
+      getDurationSeconds: () => this.runtime.durationSeconds,
+      isLoopEnabled: () => this.settings.loop,
+      getNarratorSpeed: (elapsedSeconds) => this.narratorSpeedAt(elapsedSeconds),
       onEffectsReady: () => this.beginEffects(),
       onNarrationFinished: () => this.finalizeSession(),
       onLoopRestart: () => this.restartEffectsPass(),
     });
   }
 
-  private applyTimeline(timeline: SessionTimeline): void {
-    this.runtime = new SessionRuntime(this.settings, timeline.durationSeconds);
+  private narratorSpeedAt(elapsedSeconds: number): number {
+    if (this.runtime.durationSeconds <= 0) {
+      return this.runtime.intervals[0].narratorSpeed;
+    }
+    const at = Math.min(elapsedSeconds, Math.max(0, this.runtime.durationSeconds - 1e-6));
+    return this.runtime.getIntervalPosition(at).interval.narratorSpeed;
+  }
+
+  private applyTimeline(scenario: SessionScenario): void {
+    this.runtime = new SessionRuntime(this.settings, scenario.durationSeconds);
     setActiveSessionRuntime(this.runtime);
     this.playbackState = "playing";
     this.emitValues();
@@ -205,6 +225,7 @@ export class BinauralSessionEngine {
     this.scheduler.stop();
     this.stopUiLoop();
     this.narratorLoop?.stop();
+    this.closeScenario();
 
     this.fadeMaster(0);
     window.setTimeout(() => {
@@ -352,9 +373,9 @@ export class BinauralSessionEngine {
     if (!this.context || !this.leftChannel || !this.rightChannel || !this.centerChannel) return;
 
     const now = this.context.currentTime;
-    const leftOutputs = computeChannelOutputs(elapsed, "left");
-    const rightOutputs = computeChannelOutputs(elapsed, "right");
-    const centerOutputs = computeCenterOutputs(elapsed);
+    const leftOutputs = sampleChannelAt(elapsed, "left");
+    const rightOutputs = sampleChannelAt(elapsed, "right");
+    const centerOutputs = sampleCenterChannelAt(elapsed);
 
     for (let i = 0; i < CHOIR_MEMBER_COUNT; i++) {
       this.leftChannel.oscillators[i].frequency.setValueAtTime(leftOutputs[i].frequency, now);
@@ -408,11 +429,19 @@ export class BinauralSessionEngine {
     this.pausedElapsed = 0;
     this.effectsStarted = false;
     this.narratorLoop?.stop();
+    this.closeScenario();
 
     window.setTimeout(() => {
       this.disposeOscillators();
     }, FADE_DELAY_MS);
     this.emitValues();
+  }
+
+  private closeScenario(): void {
+    const sessionId = this.scenarioId;
+    this.scenarioId = null;
+    if (!sessionId) return;
+    void abandonScenario(sessionId);
   }
 
   /** rAF-цикл отвечает только за отрисовку UI; аудио-параметры планируются по тикам. */
@@ -456,11 +485,4 @@ export class BinauralSessionEngine {
       error: this.lastError,
     });
   }
-}
-
-export function formatTime(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds));
-  const minutes = Math.floor(total / 60);
-  const secs = total % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }

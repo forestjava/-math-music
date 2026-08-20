@@ -7,15 +7,25 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "format": "prettier --write \"src/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "check:boundaries": "npx tsx scripts/check-boundaries.ts",
     "check:loop-seam": "npx tsx scripts/check-loop-seam.ts",
     "check": "npm run check:boundaries && npm run check:loop-seam"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^25.9.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "daisyui": "^5.7.19",
     "prettier": "^3.8.3",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.7.2",
     "vite": "^8.0.16"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   }
 }
