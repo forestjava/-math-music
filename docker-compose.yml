@@ -1,6 +1,7 @@
 services:
   beeps-backend:
     build: ./backend
+    container_name: beeps-backend
     environment:
       PORT: ${PORT}
       TTS_API_KEY: ${TTS_API_KEY}
@@ -13,6 +14,7 @@ services:
 
   beeps-frontend:
     build: ./frontend
+    container_name: beeps-frontend
     depends_on:
       - beeps-backend
     restart: unless-stopped
