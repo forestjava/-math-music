@@ -1,7 +1,6 @@
 services:
   beeps-backend:
     build: ./backend
-    env_file: ./backend/.env
     environment:
       PORT: ${PORT}
       TTS_API_KEY: ${TTS_API_KEY}
