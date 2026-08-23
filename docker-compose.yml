@@ -13,6 +13,8 @@ services:
       PERPLEXITY_LOG: ${PERPLEXITY_LOG}
     restart: unless-stopped
     init: true
+    networks:
+      - proxy
 
   beeps-frontend:
     build: ./frontend
@@ -22,3 +24,10 @@ services:
     depends_on:
       - beeps-backend
     restart: unless-stopped
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: proxy
