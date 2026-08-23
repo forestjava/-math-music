@@ -13,8 +13,6 @@ services:
 
   beeps-frontend:
     build: ./frontend
-    ports:
-      - "80:80"
     depends_on:
       - beeps-backend
     restart: unless-stopped
