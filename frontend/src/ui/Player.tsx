@@ -34,9 +34,9 @@ const Player = () => {
   };
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-4 p-6">
+    <div className="mx-auto flex w-full max-w-[400px] flex-col gap-4 p-4">
       <textarea
-        className="textarea min-h-32 w-full"
+        className="textarea h-[250px] min-h-[250px] w-full resize-none"
         value={prompt}
         disabled={!stopped}
         onChange={(event) => {

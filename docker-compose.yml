@@ -1,0 +1,21 @@
+services:
+  beeps-backend:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      PORT: ${PORT}
+      TTS_API_KEY: ${TTS_API_KEY}
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY}
+      YANDEX_TTS_GRPC_HOST: ${YANDEX_TTS_GRPC_HOST}
+      TIMELINE_LOG: ${TIMELINE_LOG}
+      PERPLEXITY_LOG: ${PERPLEXITY_LOG}
+    restart: unless-stopped
+    init: true
+
+  beeps-frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
