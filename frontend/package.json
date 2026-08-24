@@ -1,7 +1,8 @@
 {
-  "name": "beep-beep",
-  "private": true,
+  "name": "beep-beep",  
   "version": "1.0.0",
+  "description": "Narrative session application frontend",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",

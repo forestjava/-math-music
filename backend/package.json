@@ -1,7 +1,7 @@
 {
   "name": "backend",
-  "version": "1.0.0",
-  "description": "",
+  "version": "2.0.0",
+  "description": "Narrative session application backend",
   "private": true,
   "type": "module",
   "scripts": {

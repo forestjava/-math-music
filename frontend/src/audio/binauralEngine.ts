@@ -1,7 +1,7 @@
 import { setActiveSessionRuntime } from "../session/activeRuntime";
 import type { Interval } from "../session/intervals";
 import { SessionRuntime } from "../session/runtime";
-import { abandonScenario, waitForScenario, type SessionScenario } from "../session/scenario";
+import { abandonScenario, waitForScenario, type SessionScenario, type ScenarioProgressEvent } from "../session/scenario";
 import type { SessionSettings } from "../session/settings";
 import { NarratorLoop } from "./narrator/narratorLoop";
 import { NarratorChannel } from "./narrator/narratorChannel";
@@ -14,6 +14,10 @@ const FADE_SECONDS = 0.2;
 const FADE_DELAY_MS = FADE_SECONDS * 1000 + 100;
 
 export type PlaybackState = "stopped" | "preparing" | "playing" | "paused";
+
+export type EngineLogEvent =
+  | { type: "clear" }
+  | { type: "line"; text: string; kind: "info" | "error" };
 
 export interface LiveValues {
   playbackState: PlaybackState;
@@ -30,6 +34,7 @@ export interface LiveValues {
 }
 
 type ValuesListener = (values: LiveValues) => void;
+type LogListener = (event: EngineLogEvent) => void;
 
 export class BinauralSessionEngine {
   private context: AudioContext | null = null;
@@ -51,6 +56,7 @@ export class BinauralSessionEngine {
   private pausedElapsed = 0;
   private uiRafId = 0;
   private valuesListener: ValuesListener | null = null;
+  private logListener: LogListener | null = null;
   private settings: SessionSettings;
   private runtime: SessionRuntime;
 
@@ -82,6 +88,10 @@ export class BinauralSessionEngine {
     this.valuesListener = listener;
   }
 
+  setLogListener(listener: LogListener | null): void {
+    this.logListener = listener;
+  }
+
   getPlaybackState(): PlaybackState {
     return this.playbackState;
   }
@@ -104,6 +114,7 @@ export class BinauralSessionEngine {
     if (this.playbackState === "paused") {
       this.playbackState = "playing";
       this.lastError = null;
+      this.log("продолжение");
       if (this.effectsStarted) {
         this.beginEffects();
         this.narratorLoop?.resume();
@@ -117,10 +128,15 @@ export class BinauralSessionEngine {
     this.playbackState = "preparing";
     this.lastError = null;
     this.pausedElapsed = 0;
+    this.emitLog({ type: "clear" });
     this.emitValues();
 
     try {
-      const scenario = await waitForScenario(this.settings.userInput, this.prepareAbort.signal);
+      const scenario = await waitForScenario(
+        this.settings.userInput,
+        this.prepareAbort.signal,
+        (event) => this.logScenarioProgress(event),
+      );
       if (this.prepareAbort.signal.aborted) {
         void abandonScenario(scenario.sessionId);
         this.playbackState = "stopped";
@@ -140,6 +156,7 @@ export class BinauralSessionEngine {
       }
 
       this.lastError = error instanceof Error ? error.message : "Не удалось получить таймлайн сессии";
+      this.log(this.lastError, "error");
       this.playbackState = "stopped";
       this.emitValues();
     }
@@ -152,6 +169,7 @@ export class BinauralSessionEngine {
     if (!this.effectsStarted) {
       this.startOscillators();
       this.effectsStarted = true;
+      this.log("запуск ритмов");
     }
 
     this.sessionStartAudio = this.context.currentTime - this.pausedElapsed;
@@ -175,6 +193,12 @@ export class BinauralSessionEngine {
       onEffectsReady: () => this.beginEffects(),
       onNarrationFinished: () => this.finalizeSession(),
       onLoopRestart: () => this.restartEffectsPass(),
+      onSpeakCue: ({ index, total, cue }) => {
+        this.log(`озвучание реплики ${index + 1}/${total} [${cue.timecode}]`);
+      },
+      onSpeakFailed: (index) => {
+        this.log(`реплика ${index + 1} пропущена`, "error");
+      },
     });
   }
 
@@ -201,6 +225,7 @@ export class BinauralSessionEngine {
     this.scheduler.stop();
     this.stopUiLoop();
     this.narratorLoop?.pause();
+    this.log("пауза");
 
     this.fadeMaster(0);
     window.setTimeout(() => {
@@ -211,10 +236,12 @@ export class BinauralSessionEngine {
   }
 
   stop(): void {
+    const wasActive = this.playbackState !== "stopped" || this.context !== null;
     this.prepareAbort?.abort();
     this.prepareAbort = null;
     if (!this.context) {
       this.playbackState = "stopped";
+      if (wasActive) this.log("остановка");
       this.emitValues();
       return;
     }
@@ -226,6 +253,7 @@ export class BinauralSessionEngine {
     this.stopUiLoop();
     this.narratorLoop?.stop();
     this.closeScenario();
+    if (wasActive) this.log("остановка");
 
     this.fadeMaster(0);
     window.setTimeout(() => {
@@ -421,6 +449,7 @@ export class BinauralSessionEngine {
     if (this.playbackState !== "playing" || !this.context) return;
 
     this.pausedElapsed = 0;
+    this.log("повтор цикла");
     this.beginEffects();
   }
 
@@ -430,6 +459,7 @@ export class BinauralSessionEngine {
     this.effectsStarted = false;
     this.narratorLoop?.stop();
     this.closeScenario();
+    this.log("завершение сессии");
 
     window.setTimeout(() => {
       this.disposeOscillators();
@@ -485,4 +515,39 @@ export class BinauralSessionEngine {
       error: this.lastError,
     });
   }
+
+  private logScenarioProgress(event: ScenarioProgressEvent): void {
+    switch (event.phase) {
+      case "request":
+        this.log("отправка запроса сессии");
+        return;
+      case "accepted":
+        this.log(`сессия ${event.sessionId.slice(0, 8)} · ${event.status}`);
+        return;
+      case "check":
+        this.log(`проверка статуса: ${event.status}`);
+        return;
+      case "check-retry":
+        this.log("сбой проверки, повтор");
+        return;
+      case "ready":
+        this.log(`получен сценарий: ${event.cueCount} реплик, ${formatDuration(event.durationSeconds)} минут`);
+        return;
+    }
+  }
+
+  private log(text: string, kind: "info" | "error" = "info"): void {
+    this.emitLog({ type: "line", text, kind });
+  }
+
+  private emitLog(event: EngineLogEvent): void {
+    this.logListener?.(event);
+  }
+}
+
+function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(total / 60);
+  const rest = total % 60;
+  return `${minutes}:${String(rest).padStart(2, "0")}`;
 }

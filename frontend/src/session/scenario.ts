@@ -28,10 +28,18 @@ const SESSION_FETCH_TIMEOUT_MS = 15 * 60 * 1000;
 const POLL_INTERVAL_MS = 5000;
 const SCENARIO_ERROR_STATUSES = new Set(["failed", "cancelled", "incomplete"]);
 
+export type ScenarioProgressEvent =
+  | { phase: "request" }
+  | { phase: "accepted"; sessionId: string; status: string }
+  | { phase: "check"; status: string }
+  | { phase: "check-retry" }
+  | { phase: "ready"; cueCount: number; durationSeconds: number };
+
 /** Стартует генерацию на бэкенде и ждёт completed (опрос раз в 5 с). */
 export async function waitForScenario(
   userInput: string,
   signal?: AbortSignal,
+  onProgress?: (event: ScenarioProgressEvent) => void,
 ): Promise<SessionScenario> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SESSION_FETCH_TIMEOUT_MS);
@@ -41,14 +49,17 @@ export async function waitForScenario(
   let sessionId: string | undefined;
 
   try {
+    onProgress?.({ phase: "request" });
     const started = await postSession(userInput, controller.signal);
     sessionId = started.sessionId;
+    onProgress?.({ phase: "accepted", sessionId: started.sessionId, status: started.status });
 
     while (true) {
       throwIfAborted(controller.signal);
       const snapshot = await pollSession(sessionId, controller.signal);
 
       if (!snapshot) {
+        onProgress?.({ phase: "check-retry" });
         await sleep(POLL_INTERVAL_MS, controller.signal);
         continue;
       }
@@ -57,6 +68,12 @@ export async function waitForScenario(
         if (!Array.isArray(snapshot.cues) || typeof snapshot.durationSeconds !== "number") {
           throw new Error("Некорректный ответ GET /session при status=completed");
         }
+
+        onProgress?.({
+          phase: "ready",
+          cueCount: snapshot.cues.length,
+          durationSeconds: snapshot.durationSeconds,
+        });
 
         return {
           sessionId: snapshot.sessionId,
@@ -69,6 +86,7 @@ export async function waitForScenario(
         throw new Error(snapshot.error || scenarioErrorMessage(snapshot.status));
       }
 
+      onProgress?.({ phase: "check", status: snapshot.status });
       await sleep(POLL_INTERVAL_MS, controller.signal);
     }
   } catch (error) {

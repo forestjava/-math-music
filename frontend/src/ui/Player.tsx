@@ -1,23 +1,48 @@
 import { useEffect, useRef, useState } from "react";
 import { BinauralSessionEngine, type PlaybackState } from "../audio/binauralEngine";
 import { DEFAULT_SESSION_SETTINGS } from "../session/settings";
+import SessionLog, { type SessionLogLine } from "./SessionLog";
 
 const Player = () => {
   const engineRef = useRef<BinauralSessionEngine | null>(null);
+  const logIdRef = useRef(0);
   const [prompt, setPrompt] = useState(DEFAULT_SESSION_SETTINGS.userInput);
   const [playbackState, setPlaybackState] = useState<PlaybackState>("stopped");
-  const [error, setError] = useState<string | null>(null);
+  const [logLines, setLogLines] = useState<SessionLogLine[]>([]);
 
   useEffect(() => {
     const engine = new BinauralSessionEngine({ ...DEFAULT_SESSION_SETTINGS });
     engineRef.current = engine;
     engine.setValuesListener((values) => {
       setPlaybackState(values.playbackState);
-      setError(values.error);
+    });
+    engine.setLogListener((event) => {
+      if (event.type === "clear") {
+        setLogLines([]);
+        return;
+      }
+
+      logIdRef.current += 1;
+      const time = new Date().toLocaleTimeString("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+      const line: SessionLogLine = {
+        id: logIdRef.current,
+        time,
+        text: event.text,
+        kind: event.kind,
+      };
+      setLogLines((prev) => {
+        const next = [...prev, line];
+        return next.length > 200 ? next.slice(-200) : next;
+      });
     });
 
     return () => {
       engine.setValuesListener(null);
+      engine.setLogListener(null);
       engine.stop();
       engineRef.current = null;
     };
@@ -34,9 +59,9 @@ const Player = () => {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[400px] flex-col gap-4 p-4">
+    <div className="mx-auto flex h-dvh w-full max-w-[400px] flex-col gap-4 overflow-hidden p-4">
       <textarea
-        className="textarea h-[250px] min-h-[250px] w-full resize-none"
+        className="textarea h-[250px] min-h-[250px] w-full shrink-0 resize-none"
         value={prompt}
         disabled={!stopped}
         onChange={(event) => {
@@ -45,7 +70,7 @@ const Player = () => {
           applyPrompt(userInput);
         }}
       />
-      <div className="flex gap-2">
+      <div className="flex shrink-0 gap-2">
         <button
           type="button"
           className="btn btn-primary"
@@ -61,17 +86,9 @@ const Player = () => {
           Stop
         </button>
       </div>
-      <p className={error ? "text-error" : undefined}>{statusText(playbackState, error)}</p>
+      <SessionLog lines={logLines} />
     </div>
   );
 };
-
-function statusText(state: PlaybackState, error: string | null): string {
-  if (error) return error;
-  if (state === "preparing") return "pending scenario";
-  if (state === "playing") return "playing";
-  if (state === "paused") return "paused";
-  return "stopped";
-}
 
 export default Player;

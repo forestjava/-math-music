@@ -16,6 +16,8 @@ export interface NarratorLoopDeps {
   onEffectsReady: () => void;
   onNarrationFinished: () => void;
   onLoopRestart: () => void;
+  onSpeakCue?: (info: { index: number; total: number; cue: NarratorCue }) => void;
+  onSpeakFailed?: (index: number) => void;
 }
 
 /**
@@ -125,9 +127,11 @@ export class NarratorLoop {
       const pending = this.prefetchCache.get(index) ?? this.loadCueBuffer(cue);
       this.prefetchCache.delete(index);
       const buffer = await pending;
+      this.deps.onSpeakCue?.({ index, total: this.cues.length, cue });
       await this.deps.channel.play(buffer);
     } catch (error) {
       console.warn("[narrator] фраза пропущена:", error);
+      this.deps.onSpeakFailed?.(index);
     }
   }
 

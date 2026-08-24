@@ -60,7 +60,7 @@ export const SESSION_INTERVALS: IntervalDefinition[] = [
     gainPeakSlotStart: 0,
     gainPeakSlotEnd: 1,
     narratorPauseSeconds: 64,
-    narratorSpeed: 0.86,
+    narratorSpeed: 0.80,
   },
   {
     act: "I setup",
@@ -77,7 +77,7 @@ export const SESSION_INTERVALS: IntervalDefinition[] = [
     gainPeakSlotStart: 1,
     gainPeakSlotEnd: 2,
     narratorPauseSeconds: 32,
-    narratorSpeed: 0.84,
+    narratorSpeed: 0.78,
   },
   {
     act: "I setup",
@@ -94,7 +94,7 @@ export const SESSION_INTERVALS: IntervalDefinition[] = [
     gainPeakSlotStart: 2,
     gainPeakSlotEnd: 3,
     narratorPauseSeconds: 16,
-    narratorSpeed: 0.82,
+    narratorSpeed: 0.76,
   },
   {
     act: "II confrontation",
@@ -111,7 +111,7 @@ export const SESSION_INTERVALS: IntervalDefinition[] = [
     gainPeakSlotStart: 3,
     gainPeakSlotEnd: 3,
     narratorPauseSeconds: 8,
-    narratorSpeed: 0.80,
+    narratorSpeed: 0.74,
   },
   {
     act: "II confrontation",
@@ -128,7 +128,7 @@ export const SESSION_INTERVALS: IntervalDefinition[] = [
     gainPeakSlotStart: 3,
     gainPeakSlotEnd: 3,
     narratorPauseSeconds: 4,
-    narratorSpeed: 0.78,
+    narratorSpeed: 0.72,
   },
   {
     act: "II confrontation",
@@ -145,7 +145,7 @@ export const SESSION_INTERVALS: IntervalDefinition[] = [
     gainPeakSlotStart: 3,
     gainPeakSlotEnd: 3,
     narratorPauseSeconds: 8,
-    narratorSpeed: 0.80,
+    narratorSpeed: 0.74,
   },
   {
     act: "III resolution",
@@ -162,7 +162,7 @@ export const SESSION_INTERVALS: IntervalDefinition[] = [
     gainPeakSlotStart: 3,
     gainPeakSlotEnd: 2,
     narratorPauseSeconds: 16,
-    narratorSpeed: 0.82,
+    narratorSpeed: 0.76,
   },
   {
     act: "III resolution",
@@ -179,7 +179,7 @@ export const SESSION_INTERVALS: IntervalDefinition[] = [
     gainPeakSlotStart: 2,
     gainPeakSlotEnd: 1,
     narratorPauseSeconds: 32,
-    narratorSpeed: 0.84,
+    narratorSpeed: 0.78,
   },
   {
     act: "III resolution",
@@ -196,7 +196,7 @@ export const SESSION_INTERVALS: IntervalDefinition[] = [
     gainPeakSlotStart: 1,
     gainPeakSlotEnd: 0,
     narratorPauseSeconds: 64,
-    narratorSpeed: 0.86,
+    narratorSpeed: 0.80,
   },
 ];
 
