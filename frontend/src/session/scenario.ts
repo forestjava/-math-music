@@ -22,11 +22,22 @@ interface SessionSnapshot {
   cues?: TtsCue[];
   durationSeconds?: number;
   error?: string;
+  agentOutput?: string;
 }
 
 const SESSION_FETCH_TIMEOUT_MS = 15 * 60 * 1000;
 const POLL_INTERVAL_MS = 5000;
 const SCENARIO_ERROR_STATUSES = new Set(["failed", "cancelled", "incomplete"]);
+
+export class ScenarioError extends Error {
+  readonly agentOutput?: string;
+
+  constructor(message: string, agentOutput?: string) {
+    super(message);
+    this.name = "ScenarioError";
+    this.agentOutput = agentOutput;
+  }
+}
 
 export type ScenarioProgressEvent =
   | { phase: "request" }
@@ -83,7 +94,10 @@ export async function waitForScenario(
       }
 
       if (SCENARIO_ERROR_STATUSES.has(snapshot.status)) {
-        throw new Error(snapshot.error || scenarioErrorMessage(snapshot.status));
+        throw new ScenarioError(
+          snapshot.error || scenarioErrorMessage(snapshot.status),
+          snapshot.agentOutput,
+        );
       }
 
       onProgress?.({ phase: "check", status: snapshot.status });

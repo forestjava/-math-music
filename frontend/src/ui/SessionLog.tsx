@@ -27,7 +27,10 @@ const SessionLog = ({ lines }: SessionLogProps) => {
       className="min-h-0 flex-1 overflow-y-auto rounded-box bg-neutral-950 px-3 py-2 font-mono text-[11px] leading-5 text-neutral-200"
     >
       {lines.map((line) => (
-        <p key={line.id} className={`break-words ${line.kind === "error" ? "text-red-400" : ""}`}>
+        <p
+          key={line.id}
+          className={`whitespace-pre-wrap break-words ${line.kind === "error" ? "text-red-400" : ""}`}
+        >
           <span className="text-neutral-500">{line.time} </span>
           {line.text}
         </p>

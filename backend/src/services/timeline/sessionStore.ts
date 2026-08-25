@@ -6,6 +6,7 @@ export interface SessionRecord {
   status: string;
   scenario?: SessionScenario;
   error?: string;
+  agentOutput?: string;
 }
 
 const sessions = new Map<string, SessionRecord>();

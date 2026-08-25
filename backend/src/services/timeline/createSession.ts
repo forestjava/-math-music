@@ -29,6 +29,8 @@ export interface SessionSnapshot {
   cues?: TtsCue[];
   durationSeconds?: number;
   error?: string;
+  /** Сырой ответ агента — только если не удалось найти блок TTS. */
+  agentOutput?: string;
 }
 
 export async function startSession(userInput: string): Promise<SessionStart> {
@@ -83,9 +85,17 @@ export async function refreshSession(sessionId: string): Promise<SessionSnapshot
       logTimelineExchange(sessionId, run.outputText);
       record.scenario = parseSessionScenario(sessionId, run.outputText);
       record.error = undefined;
+      record.agentOutput = undefined;
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Не удалось разобрать сценарий";
       record.status = "failed";
-      record.error = error instanceof Error ? error.message : "Не удалось разобрать сценарий";
+      record.error = message;
+      if (message.includes("нет блока TTS")) {
+        record.agentOutput = run.outputText;
+      } else {
+        record.agentOutput = undefined;
+      }
     }
 
     saveSessionRecord(record);
@@ -129,6 +139,7 @@ function toSnapshot(record: SessionRecord): SessionSnapshot {
     sessionId: record.sessionId,
     status: record.status,
     error: record.error,
+    agentOutput: record.agentOutput,
   };
 }
 

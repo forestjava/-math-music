@@ -1,7 +1,7 @@
 import { setActiveSessionRuntime } from "../session/activeRuntime";
 import type { Interval } from "../session/intervals";
 import { SessionRuntime } from "../session/runtime";
-import { abandonScenario, waitForScenario, type SessionScenario, type ScenarioProgressEvent } from "../session/scenario";
+import { abandonScenario, waitForScenario, ScenarioError, type SessionScenario, type ScenarioProgressEvent } from "../session/scenario";
 import type { SessionSettings } from "../session/settings";
 import { NarratorLoop } from "./narrator/narratorLoop";
 import { NarratorChannel } from "./narrator/narratorChannel";
@@ -157,6 +157,9 @@ export class BinauralSessionEngine {
 
       this.lastError = error instanceof Error ? error.message : "Не удалось получить таймлайн сессии";
       this.log(this.lastError, "error");
+      if (error instanceof ScenarioError && error.agentOutput) {
+        this.log(error.agentOutput, "error");
+      }
       this.playbackState = "stopped";
       this.emitValues();
     }
