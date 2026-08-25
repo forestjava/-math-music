@@ -51,7 +51,7 @@ export async function startBackgroundScenario(
 ): Promise<BackgroundRun> {
   const client = createClient();
   const response = await client.responses.create({
-    preset: "medium",
+    preset: "high",
     instructions,
     input: userInput,
     tools: AGENT_TOOLS,

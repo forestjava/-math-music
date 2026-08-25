@@ -12,6 +12,11 @@ export interface SessionScenario {
 const TTS_HEADING = /(?:^|\n)\s*#{0,6}\s*TTS\s*(?:\n|$)/i;
 const FENCE = /```(?:text)?\s*\n([\s\S]*?)\n```/;
 const TIMECODE = /\[(\d{1,2}):(\d{2}):(\d{2})\]/g;
+const MARKDOWN_HEADING_LINE = /^\s*#{1,6}\s+.*$/gm;
+
+function stripMarkdownHeadings(text: string): string {
+  return text.replace(MARKDOWN_HEADING_LINE, "").trim();
+}
 
 /** Вырезает тело fenced-блока TTS из сырого ответа агента. */
 export function extractTtsFence(raw: string): string {
@@ -43,15 +48,19 @@ export function parseTtsCues(body: string): TtsCue[] {
       throw new Error(`Некорректный таймкод ${match[0]}`);
     }
 
-    const text = body.slice(start + match[0].length, end).trim();
+    const text = stripMarkdownHeadings(body.slice(start + match[0].length, end));
     if (!text) {
-      throw new Error(`Пустой текст после таймкода ${match[0]}`);
+      continue;
     }
 
     cues.push({
       timecode: formatTimecode(hours, minutes, seconds),
       text,
     });
+  }
+
+  if (cues.length === 0) {
+    throw new Error("В блоке TTS нет озвучиваемого текста после таймкодов [hh:mm:ss]");
   }
 
   return cues;
